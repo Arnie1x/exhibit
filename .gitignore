@@ -1,0 +1,28 @@
+# --- secrets & local state ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- data (large, reproducible with `make fetch`) ---
+data/*.zip
+data/*.tar.gz
+data/*.log
+data/*.parquet
+data/*.csv.gz
+
+# --- build / runtime ---
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+.uv/
+node_modules/
+.exhibit/
+*.duckdb
+
+# --- editor / OS ---
+.DS_Store
+.idea/
+.vscode/
