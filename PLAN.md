@@ -251,8 +251,12 @@ Core ten. Each returns the envelope; each has a constraint it must respect.
 | `what_changed` | significant terms, foreground vs baseline | `ts_dict_agg` / `ts_dict_count`, lift over chance |
 | `episodes` | incidents, not lines | Coalescing gap is a **parameter** (1/5/60 min), stated in the answer |
 
-Optional five, only after the MVP gate: `trace_context`, `drop_index` / `create_index`
-(probe-gated, see §14), `validate` (hidden ground truth), `explain_query`.
+Optional four, only after the MVP gate: `trace_context`, `drop_index` / `create_index`
+(probe-gated, see §14), `explain_query`.
+
+**`validate` is deliberately NOT a tool.** Ground truth (`anomaly_labels.txt`, BGL's label column)
+lives in `scripts/validate_ground_truth.py`, which the agent cannot call and cannot read. A tool the
+agent can invoke is not out of reach — that is the whole point of the validation.
 
 **Answer contract**, enforced in code:
 
@@ -263,7 +267,7 @@ Optional five, only after the MVP gate: `trace_context`, `drop_index` / `create_
 
 - **engineer** → raw lines, highlighted snippets, timeline, neighbour events, the query itself. Granular, technical, no summarising away the evidence.
 - **team_lead** → aggregated signatures grouped by owning **team**, backlog shape, what changed, where the work sits. No individual log lines.
-- **manager** → signature level only, prioritisation by **blast radius and persistence**, and `Not established` for anything about money, customers or downtime. No component names, no raw text.
+- **manager** → signature level only, prioritisation by **blast radius and persistence**, naming the **affected component family and owning team** (the brief tells managers to use "measured frequency and affected components"), and `Not established` for anything about money, customers or downtime. **Never** raw log text, node IDs, logger names, or invented business impact.
 
 The manager lint rejects `€`, `$`, `downtime`, `customers`, `revenue`, `SLA` automatically. That
 guard exists because the brief explicitly warns against inventing business impact, and a rule
@@ -456,7 +460,26 @@ everyone in the room want to help you.
 7. Timestamps arrive as VARCHAR: cast them. `date_trunc` needs `::timestamptz`.
 8. Never support a count with `LIKE '%term%'` — tokenization differs, and `@@ 'base'` gives 21,212 while the older non-alpha index gives 45,306 and `ILIKE` gives 45,351. **Always state the operator you used.** See `docs/capabilities.md` §5.
 9. `ts_offsets` / `ts_highlight` need an `@@` in the same sub-query.
-10. There is no index-size metric: `sdb_metrics` reports connection/refresh/compaction counters, `sdb_indexes()` has no size columns, `pg_class` gives `relpages = 0`. Measure wall-clock and the data directory.
+10. **`ts_any` / `ts_all` need an explicit cast** when the term list is a bound parameter:
+    `content @@ ts_any(%s::TSQUERY[])`. A bare Python list raises
+    `Could not choose a best candidate function for the function call "ts_any(STRING_LITERAL)"`.
+11. **psycopg's normal binding works** — `@@ %s` → 350,567 and `@@ ts_phrase(%s)` → 152,734 with the
+    default cursor. The `ClientCursor` fallback is unnecessary. But `PREPARE … $1` in **psql** fails
+    (`TypeList for prepared statement has not been implemented`); that is a psql limitation, not a
+    psycopg one — do not conclude parameters are broken from it.
+12. **`GRANT` cannot target an index relation** (`relation "bgl_idx" does not exist`), and the
+    privilege check on an index relation resolves to the **base table** (`permission denied for table
+    bgl_ev`). You therefore cannot grant search-only access, and a role with no grant on `bgl_ev`
+    cannot query `bgl_idx` directly.
+13. **Role-scoped search goes through a view over the index relation.** Verified end to end: a role
+    with `SELECT` on a plain view whose body is `SELECT … FROM bgl_idx` searched successfully
+    (**350,567** matches) with a bound parameter, while `SELECT … FROM bgl_ev` was refused. Views
+    read their sources with the owner's privileges, so scope is enforced in the database without
+    granting the table.
+14. **`SECURITY DEFINER` functions are not honoured** — a definer function still failed with
+    `permission denied for table bgl_ev`. Parameterised search must be a view plus an outer
+    predicate, not a definer function.
+15. There is no index-size metric: `sdb_metrics` reports connection/refresh/compaction counters, `sdb_indexes()` has no size columns, `pg_class` gives `relpages = 0`. Measure wall-clock and the data directory.
 
 **Conventions:** Python 3.11+ with `uv`; SQL is idempotent (`DROP … IF EXISTS`); no secrets in
 the repo; local SereneDB on loopback with trust auth; conventional commits; one stage per
