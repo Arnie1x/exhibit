@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Sequence
 
 from . import db
@@ -43,8 +44,21 @@ def rows_hash(rows: Sequence[dict]) -> str:
 
 
 def _scalar(value: Any) -> Any:
+    """One value, canonically -- whichever form it arrives in.
+
+    A recorded row has been through the envelope's normaliser (int, float, ISO string), while a
+    re-run hands back what the driver returned (DECIMAL, date, timedelta). Both have to land on the
+    same token or ``verify_evidence`` reports MISMATCH on a statement that answered identically --
+    which is exactly what happened the first time the envelope started normalising.
+    """
+    if isinstance(value, bool):
+        return value
     if isinstance(value, (list, tuple)):
         return [_scalar(v) for v in value]
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, timedelta):
+        return str(value)
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return value

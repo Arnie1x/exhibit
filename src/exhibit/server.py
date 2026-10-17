@@ -76,7 +76,7 @@ mcp = MCPServer(
     "What the given persona can ask, of which data, over what period, grouped how. Call this first. "
     "persona: engineer | lead | manager (default engineer)."))
 def describe_data(dataset: str | None = None, persona: str | None = None) -> str:
-    return json.dumps(tools.describe_data(persona, dataset), default=str)
+    return json.dumps(tools.describe_data(persona=persona, dataset=dataset), default=str)
 
 
 @mcp.tool(description=(
@@ -96,7 +96,8 @@ def search_logs(
     team: str | None = None,
 ) -> str:
     return json.dumps(
-        tools.search_logs(dataset, query, persona, mode, limit, since, until, level, team),
+        tools.search_logs(dataset=dataset, query=query, persona=persona, mode=mode, limit=limit,
+                           since=since, until=until, level=level, team=team),
         default=str,
     )
 
@@ -119,7 +120,9 @@ def count_events(
     team: str | None = None,
 ) -> str:
     return json.dumps(
-        tools.count_events(dataset, group_by, persona, query, mode, limit, since, until, level, team),
+        tools.count_events(dataset=dataset, group_by=group_by, persona=persona, query=query,
+                           mode=mode, limit=limit, since=since, until=until, level=level,
+                           team=team),
         default=str,
     )
 
@@ -130,12 +133,16 @@ def count_events(
     "22,002 incidents at 1 minute and 14,479 at 60. gap_minutes is a parameter only for the engineer, "
     "who holds a grant on the parsed relation; for the lead and manager incidents are pre-grouped at "
     "5 minutes and asking for another gap returns a refusal that says why. "
-    "coalesce_by: failure_domain (default) | signature."))
+    "coalesce_by: failure_domain (default) | signature. signature= filters to one signature "
+    "(engineer and lead only; the manager's relation names problems by signature_id, and the "
+    "refusal says so) -- this is how 132 / 117 / 57 incidents for one signature at gaps of 1 / 5 / "
+    "60 minutes is reproduced through the tool."))
 def episodes(
     dataset: str,
     persona: str | None = None,
     gap_minutes: int = 5,
     coalesce_by: str | None = None,
+    signature: str | None = None,
     limit: int = 20,
     since: str | None = None,
     until: str | None = None,
@@ -143,8 +150,9 @@ def episodes(
     team: str | None = None,
 ) -> str:
     return json.dumps(
-        analytics.episodes(dataset, persona, gap_minutes, coalesce_by, limit, since, until, level,
-                           team),
+        analytics.episodes(dataset=dataset, persona=persona, gap_minutes=gap_minutes,
+                           coalesce_by=coalesce_by, signature=signature, limit=limit,
+                           since=since, until=until, level=level, team=team),
         default=str,
     )
 
@@ -166,8 +174,9 @@ def top_signatures(
     team: str | None = None,
 ) -> str:
     return json.dumps(
-        analytics.top_signatures(dataset, persona, by, gap_minutes, limit, since, until, level,
-                                 team),
+        analytics.top_signatures(dataset=dataset, persona=persona, by=by,
+                                 gap_minutes=gap_minutes, limit=limit, since=since,
+                                 until=until, level=level, team=team),
         default=str,
     )
 
@@ -188,7 +197,8 @@ def trend(
     team: str | None = None,
 ) -> str:
     return json.dumps(
-        analytics.trend(dataset, persona, bucket, days, limit, since, until, level, team),
+        analytics.trend(dataset=dataset, persona=persona, bucket=bucket, days=days, limit=limit,
+                    since=since, until=until, level=level, team=team),
         default=str,
     )
 
@@ -205,7 +215,7 @@ def durations(
     limit: int = 20,
     team: str | None = None,
 ) -> str:
-    return json.dumps(analytics.durations(dataset, persona, by, limit, team), default=str)
+    return json.dumps(analytics.durations(dataset=dataset, persona=persona, by=by, limit=limit, team=team), default=str)
 
 
 @mcp.tool(description=(
@@ -219,7 +229,7 @@ def ownership(
     team: str | None = None,
     limit: int = 100,
 ) -> str:
-    return json.dumps(analytics.ownership(persona, dataset, team, limit), default=str)
+    return json.dumps(analytics.ownership(persona=persona, dataset=dataset, team=team, limit=limit), default=str)
 
 
 @mcp.tool(description=(
@@ -234,7 +244,8 @@ def nearby_events(
     minutes: int = 15,
     limit: int = 20,
 ) -> str:
-    return json.dumps(analytics.nearby_events(dataset, persona, ts, id, minutes, limit), default=str)
+    return json.dumps(analytics.nearby_events(dataset=dataset, persona=persona, ts=ts, id=id, minutes=minutes,
+                            limit=limit), default=str)
 
 
 @mcp.tool(description=(
@@ -251,7 +262,8 @@ def what_changed(
     limit: int = 20,
 ) -> str:
     return json.dumps(
-        analytics.what_changed(dataset, persona, window_hours, baseline_hours, min_lines, limit),
+        analytics.what_changed(dataset=dataset, persona=persona, window_hours=window_hours,
+                           baseline_hours=baseline_hours, min_lines=min_lines, limit=limit),
         default=str,
     )
 
@@ -261,7 +273,7 @@ def what_changed(
     "pass it here to have the exact statement re-executed under the exact role with the exact "
     "parameters. A MISMATCH means the corpus or the definition moved since the answer was given."))
 def verify_evidence(evidence_id: str, sample: int = 3) -> str:
-    return json.dumps(analytics.verify_evidence(evidence_id, sample), default=str)
+    return json.dumps(analytics.verify_evidence(evidence_id=evidence_id, sample=sample), default=str)
 
 
 def main() -> None:

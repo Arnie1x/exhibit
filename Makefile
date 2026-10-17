@@ -33,19 +33,19 @@ probe: ## re-measure docs/capabilities.md against the engine; DRIFT lines mean t
 	PSQL='$(PSQL)' DATA='$(DATA)' bash scripts/probe_capabilities.sh
 
 derive: ## raw Parquet -> bgl_ev, os_ev, owner_map
-	$(PSQL) -v data='$(DATA)' -v map='$(MAP)' -f sql/10_derive.sql
+	$(PSQL) -v data='$(DATA)' -v map='$(MAP)' < sql/10_derive.sql
 
 index: ## dictionary + bgl_idx / os_idx + refresh
-	$(PSQL) -f sql/20_indexes.sql
+	$(PSQL) < sql/20_indexes.sql
 
 views: ## signatures, incidents, episodes, durations, role views
-	$(PSQL) -f sql/30_views.sql
+	$(PSQL) < sql/30_views.sql
 
 roles: ## role views + GRANTs (scope enforced in the database)
-	$(PSQL) -f sql/50_roles.sql
+	$(PSQL) < sql/50_roles.sql
 
 evidence: ## the evidence ledger table + its grants (sql/55_evidence.sql; after roles, which resets grants)
-	$(PSQL) -f sql/55_evidence.sql
+	$(PSQL) < sql/55_evidence.sql
 
 bootstrap: derive index views roles evidence ## full rebuild from raw Parquet (idempotent, ~25 s); roles then evidence, views' CASCADE drops them
 
@@ -60,13 +60,13 @@ check: ## Stage 2 acceptance: tool numbers vs make smoke, then a stock MCP clien
 	uv run python scripts/stage2_mcp_client.py
 
 smoke: ## the three headline numbers, printed for comparison
-	$(PSQL) -f sql/99_smoke.sql
+	$(PSQL) < sql/99_smoke.sql
 
 demo: ## the two worked investigations, exactly as the video runs them
-	$(PSQL) -f sql/90_queries.sql
+	$(PSQL) < sql/90_queries.sql
 
 bench: ## optional: index a remote Parquet slice, measure rows/s (huge-datasets award)
-	$(PSQL) -f sql/70_bench.sql
+	$(PSQL) < sql/70_bench.sql
 
 eval: ## score agent answers against golden SQL
 	python3 evals/run_eval.py

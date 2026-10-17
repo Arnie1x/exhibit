@@ -83,6 +83,20 @@ async def main() -> int:
             assert res["refused"] is True, "the lead must not be able to search"
 
             print("\nStage 3, through the same stock client: incidents, not lines")
+            print("\ncalling episodes(bgl, engineer, gap=5, signature='data TLB error interrupt')")
+            res = payload(await session.call_tool("episodes", {
+                "dataset": "bgl", "persona": "engineer", "gap_minutes": 5,
+                "signature": "data TLB error interrupt", "limit": 2}))
+            print("  ", res["headline"])
+            assert res["total_matches"] == 117, f"expected 117 DTLB incidents at a 5-minute gap, got {res['total_matches']}"
+            print("   DTLB at a 5-minute gap = 117 incidents (the teammate's independent number)")
+
+            print("\ncalling top_signatures(bgl, manager, by=episodes)")
+            res = payload(await session.call_tool("top_signatures", {
+                "dataset": "bgl", "persona": "manager", "by": "episodes", "limit": 3}))
+            print("  ", res["headline"])
+
+            print("\ncalling episodes(bgl, engineer, gap=5, limit=1)")
             res = payload(await session.call_tool("episodes", {
                 "dataset": "bgl", "gap_minutes": 5, "limit": 1}))
             print(" ", res["headline"])

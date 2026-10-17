@@ -233,3 +233,82 @@ W2 views and `CLAUDE.md` are exactly as you left them.
   5-minute gap and 152,182 lines for the worst incident, and `top_signatures by=nodes` should put
   `Microloader Assertion` on top — those three are acceptance checks, so a mismatch means the
   data moved, not that the tool drifted.
+
+## Handoff back, round 2 — after your Stage 3 landed (Arnie, Sat 17 Oct)
+
+Your half is on `main` at `814f1f3`; my branch is rebased on top of it, `make check` is **94/94**,
+and `make demo` prints your W1/W2 unchanged. **I verified every number you quoted, with my own SQL
+and through my own tools, before believing any of it.** Results, including the two places your
+message was loose:
+
+- **91% / 81.61% / 52% / 48% — confirmed.** `compute-platform`: 4,325,112 of 4,747,963 all lines
+  (91.1%), 284,391 of 348,460 alert lines (81.6%), 9,952 of 19,250 incidents (51.7%); ciod 9,258
+  (48.1%). All four now sit in PLAN.md §9 W1 with the cut labelled on each.
+- **"eight nodes" — you are right and I was loose.** `max(nodes)` in any one Lustre incident is
+  **8**; the signature reaches **1,024 nodes** overall. PLAN.md now says "at most 8 nodes in any one
+  of them, 1,024 I/O nodes overall" rather than my earlier "eight per midplane".
+- **DTLB 152,734 / 99.64% one node — confirmed** (152,182 of 152,734).
+- **rts panic: 3,394 nodes, 124 days — confirmed** (`KERNRTSP`). But the phrasing in your message
+  conflated two measures, so PLAN.md now separates them: DTLB is **12th by blast radius** and **23rd
+  by blast radius + persistence**, and rts panic is **1st on the combined measure**. By peak blast
+  radius *alone* the top is a third signature (the fleet event, 22,529 nodes) — worth knowing before
+  a judge asks which ranking you mean.
+- **132 / 117 / 57 — confirmed twice.** Once as your literal SQL, once through my tool with a bound
+  parameter: `episodes(bgl, engineer, gap_minutes=1|5|60, signature='data TLB error interrupt')`
+  returns 132 / 117 / 57. So the answer to your "not tested through psycopg's binding" note is: it
+  binds, it works, and it is now an acceptance check rather than a claim.
+- **ciod 3,638 all in the last 9 weeks, Lustre none — confirmed** (`Lustre mount FAILED : bglio{n} :
+  point /p/gb{n}` = 3,667 incidents, last one 2005-09-16; ciod's 3,638 run 2005-11-17 → 2006-01-03).
+  That contrast is now in PLAN.md §9 as the lead's answer.
+
+What I changed because of your handoff:
+
+1. **`datasets.py:141` — fixed, and your reasoning was right.** The engineer read `bgl_ev`, whose
+   `signature` group was `alert_category` (the label). The engineer now reads **`bgl_sig` / `os_sig`**
+   — same rows, masked signature added — so `group_by="signature"` means a signature, and the label
+   has its own `category` group. Measured, as the check: `category` puts **4,399,503 of 4,747,963
+   lines under `-`**, `signature` puts `generating core.{n}` on top. Two calls, and the trap is
+   visible in the demo.
+2. **`episodes` gained `signature=`** (which is how I reproduced your 132/117/57 above). It is
+   **refused for the manager**, whose relation names problems by `signature_id` and not by text —
+   the refusal says so and points at the key.
+3. **The password question — answered, and the answer is one flag, not a decision about secrets.**
+   It is not a security setting we have to trade off: the container's `/entrypoint.sh` writes its HBA
+   **only if `SERENEDB_HOST_AUTH_METHOD` is set**, and without it the default trusts `postgres` on the
+   container's own loopback and demands a password from anywhere else — including Docker Desktop's
+   forwarded loopback, which the container sees as remote. So: `-e SERENEDB_HOST_AUTH_METHOD=trust`
+   on the container (recognised values: `trust | reject | password | md5 | scram-sha-256`; **any
+   other value logs a parse error and silently falls back to demanding a password**). It is
+   documented in the README's docker run with the scope warning. My box already runs with it, so
+   `psql -h 100.108.122.19 -p 7890 -U postgres` should work from your machine as it stands — I
+   verified a connection over the Tailscale address with no password. Nothing for us to choose: the
+   roles stay passwordless and we keep `SET ROLE`, which you and I both measured is the only path
+   that works.
+4. **Makefile `-f sql/x.sql` → `< sql/x.sql` — done** (your Stage 6 item; `make smoke`, `make demo`
+   re-run afterwards).
+5. **The ledger grants stay in `sql/55_evidence.sql`.** Don't add them to `sql/50_roles.sql`: 50 is
+   yours, 55 is mine, and separate files mean we never collide. `make bootstrap: derive index views
+   roles evidence` — 55 after 50, because 50 resets grants.
+
+Two more failures worth your time, both at the MCP boundary rather than inside a tool:
+
+- **The server forwarded arguments positionally.** Inserting one parameter into a tool's signature
+  shifted every later argument: `episodes(..., limit=3)` arrived as `signature=3` and the server
+  answered `Could not convert string 'rts panic! - stopping execution' to INT16 ... WHERE signature
+  = $2`. Every unit-level check passed — the function was called correctly in all of them and
+  incorrectly by its only real caller. All wrappers forward by keyword now, and the stock-client
+  check exercises the tools over MCP, which is the only place that bug is visible.
+- **The manager's ranked list was not JSON-serialisable.** This engine returns DECIMAL for
+  `sum(...)`, `date` for a bucketed day, `datetime` for a timestamp and `timedelta` for a duration;
+  `json.dumps` takes none of them, and
+  **7 of 10 sampled tool calls raised `TypeError` on a strict client while 93 acceptance checks stayed
+green** — they compare Python objects, and the MCP layer's pydantic models were absorbing the rest.
+Everything now normalises in the shared envelope, and there is a check that dumps every tool for
+every persona. One knock-on: once the envelope normalised, `verify_evidence` started reporting
+MISMATCH on identical answers (the recorded rows were normalised, the re-run rows were raw), so the
+ledger's hash now canonicalises both forms. If you run my tools over MCP, those are the fixes you
+are picking up.
+
+Also added while I was in there, because the demo quotes it: `episodes` takes **`signature=`** and
+`scripts/stage2_mcp_client.py` asserts **117** incidents for `data TLB error interrupt` at a
+5-minute gap — your number, through my tool, over MCP, as part of `make check`.
