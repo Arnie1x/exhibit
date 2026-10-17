@@ -89,7 +89,43 @@ appearing in some descriptions of the corpus.
 | Rows carrying a parsed `instance_id` | 51,553 | 2,066 spawn lines, 2,066 build lines |
 
 **The eight tracebacks are the honest unit.** Counting 188 error *lines* as 188 problems is the
-mistake the whole project is designed to avoid.
+mistake the whole project is designed to avoid. Precisely (17 Oct): the 188 ERROR + CRITICAL lines
+are **184** traceback lines of the image cache bug **plus 4** token-validation lines (2 ERROR,
+2 CRITICAL); the auth problem adds 2 WARNING lines for 6 in all.
+
+**Lines → incidents → records** (`os_problem_incidents`, `sql/30_views.sql`; incident = the same
+problem with no gap over 5 minutes; record = lines sharing file, pid, ts, logger and level, so a
+traceback is one record; `make smoke` §6b):
+
+| Problem (our label, from logger + level) | Worst | Lines | Incidents | Records | Team (ownership) |
+|---|---|---|---|---|---|
+| token validation failed (identity server 503) | CRITICAL | 6 | 2 | 6 | identity |
+| image cache pass failed (InvalidDiskInfo) | ERROR | 184 | 8 | 8 (= 8 tracebacks of 23 lines) | platform-services |
+| power-state sync: instance count mismatch | WARNING | 45 | 45 | 45 | compute-platform |
+| vcpu count unavailable (cpu affinity) | WARNING | 12 | 10 | 12 | compute-platform |
+| image cache: unknown base file | WARNING | 3,059 | **3** | 3,059 | image-service |
+
+- The two auth incidents are one request each, 3 lines in 2 ms, at 06:25:02 on 05-16 and 06:25:03
+  on 05-17, in this order: ERROR `Bad response code while validating token: 503`, WARNING
+  `Identity response: <!DOCTYPE HTML …>`, CRITICAL `Unable to validate token`. Log text, including that HTML, is
+  untrusted data.
+- The 3,059 "unknown base file" warnings are a **persistent condition**, not 3,059 events: they
+  never pause for 5 minutes inside a log file, so the 3 incidents are exactly the 3 files (270,
+  838 and 1,951 lines). The two splits (93,870 s and 31,871 s) are the gaps between the files, not
+  quiet periods: read it as "present in all three files". That they share a cause with the
+  traceback is a hypothesis.
+- **Ownership trap:** the traceback is the image cache failing, but it is logged by
+  `oslo_service.periodic_task`, so logger-first precedence assigns it to `platform-services`,
+  while the imagecache warnings go to `image-service`. A lead view by owning team splits one bug
+  across two teams.
+
+**Instance lifecycle** (`os_instance_durations`; events matched on the exact masked message):
+claim (`Attempting claim` → `Claim successful`), image (`Creating image` → `VM Started`), boot
+(`VM Started` → `Instance spawned successfully.`), run (→ `Terminating instance`), teardown
+(→ `VM Stopped`), plus nova's own `Took N seconds` for spawn, build, destroy and network release.
+2,069 instances; 2,066 spawned. Medians: spawn 19.74 s, image 13.08 s (over 2,065: `b9000564…`
+has no `Creating image` line because `openstack_normal1.log` starts mid-lifecycle), boot 6.65 s.
+Verified 17 Oct by `sql-verifier` on the raw Parquet and `os_ev`: `tests/golden/w2_numbers.sql`.
 
 ## The labelled anomalies
 
@@ -108,5 +144,13 @@ between the normal and abnormal files (mean 0.234 s in both; p95 0.383 vs 0.377)
 **lifecycle-duration outliers** — `os_instance_durations` ranks them at positions **1–4** by
 spawn/build duration (50.72 / 41.81 / 31.27 / 29.46 s), with the first unlabelled instance at
 position 5 (26.69 s). No level filter or latency percentile recovers them.
+
+**Where the time goes** (17 Oct): the extra time is in the **image phase** (`Creating image` →
+`VM Started`): 44.454, 34.647, 25.217, 22.444 s against a median of 13.08 s, and ranking by that
+phase alone also puts the four at positions 1–4 (position 5: 19.808 s). Boot (6.0–7.2 s against a
+median of 6.65 s), run and teardown are ordinary. API latency per file (`os_latency_by_file`,
+`quantile_cont`): abnormal 9,416 calls, mean 0.2340 s, p95 0.3771 s; normal files 89,317 calls,
+mean 0.2341 s, p95 0.3826 s. The abnormal file holds 198 instances, so its name does not reveal
+which four are labelled.
 
 They are used **only** by a validation script that the agent cannot reach. See PLAN.md §9.

@@ -6,7 +6,7 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
 
 | Team stage | Window | Adnan's part | Result |
 | --- | --- | --- | --- |
-| 0–1 Probe, data layer | Done by Sat 12:00 | Re-probe, verify headline numbers, port `sql/50_roles.sql`, extend `os_sig` | |
+| 0–1 Probe, data layer | Done by Sat 12:00 | Re-probe, verify headline numbers, port `sql/50_roles.sql`, extend `os_sig` | Done Sat 13:30 on a second machine: gate met (4,747,963 / 207,812; 348,460 → 19,250); burst corrected to 152,183; partial-index row corrected; roles and W2 views in |
 | 2 MCP skeleton | Sat 12:00–14:00 | Golden SQL for the first three tools | |
 | 3 W1/W2 tools | Sat 14:00–17:00 | Views for `top_signatures`, `trend`, `episodes`, `durations`, `ownership` | |
 | Q&A | Sat 17:00–20:00 | Questions from team plan §13; answers into `PLAN.md` | |
@@ -76,6 +76,19 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
   | Headline numbers after the view change | 348,460 → 19,250 → 1,377 unchanged; 152,183 / 1 vs 49,154 / 22,529 |
   | Speed | every role view answers in under 300 ms (`lead_bgl_daily` 290 ms, `mgr_bgl_risk` 256 ms) |
 
+- **Item 4, W2 views (Sat 17 Oct, 12:55–13:30).** `os_sig` gains `level_rank`, `record_key` (lines of one log record: a traceback's 23 lines share file, pid, ts, logger, level), `problem` (our label from logger + level, `'NONE'` for INFO), `event` (lifecycle step on the exact masked message) and `took_s`. New views: `os_episode` / `os_incident` / `os_problem_incidents` (problem incidents at a 5-minute gap, with records and tracebacks), `os_latency_by_file`; `os_instance_durations` gains the lifecycle phases (claim, image, boot, run, teardown, destroy, dealloc, `lifetime_s`) and its `team` is now the owning team instead of `'NONE'`. Roles: engineer and lead get the new views; manager's `mgr_os_risk` is now one row per problem and `mgr_os_lifecycle` gives the duration distribution without instance IDs. `make smoke` §6b, §7, §7a print the W2 numbers.
+
+  | Acceptance (item 4) | Result |
+  | --- | --- |
+  | Imagecache traceback grouping | 184 ERROR lines → **8 incidents = 8 records = 8 tracebacks** (23 lines each, ≥ 58 min apart), all `InvalidDiskInfo` |
+  | CRITICAL auth lines | 6 lines (2 CRITICAL, 2 ERROR, 2 WARNING) → **2 incidents**, 1 request each, 06:25 on 05-16 and 05-17; the only CRITICAL lines |
+  | "Unknown base file" warnings | 3,059 lines → **3 incidents** at 5 min = exactly the 3 log files (270 / 838 / 1,951): never quiet for 5 minutes inside a file, a persistent condition |
+  | Lifecycle durations | the 4 labelled instances rank 1–4 by spawn (50.72 / 41.81 / 31.27 / 29.46 s) **and** by image phase (44.454 / 34.647 / 25.217 / 22.444 s vs median 13.08); boot 6.0–7.2 s vs median 6.65: the time is in image creation |
+  | Latency, normal vs abnormal file | mean 0.2340 vs 0.2341 s, p95 0.3771 vs 0.3826 s (`quantile_cont`) |
+  | Lifecycle events matched | claim_start 2,065 · image_create 2,066 · vm_started 2,066 · spawned 2,066 · terminate 2,064 · vm_stopped 2,067 — equal to the per-signature counts |
+  | Manager scope | `mgr_os_risk` (5 problems, 68 incidents) and `mgr_os_lifecycle` carry no text, no logger, no instance ID |
+  | Independent check | `sql-verifier`, fresh SQL on the raw Parquet and `os_ev`: all six W2 claims MATCH (`tests/golden/w2_numbers.sql`, 46 rows `t`); shortest gap between tracebacks 58m44.9s; image median over 2,065 instances |
+
 ## Decisions
 
 - The team plan governs schedule, split and stage numbers; `docs/build-plan.md` is the design reference.
@@ -111,6 +124,10 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
   - lead: no per-line relation and **no full-text search** (the database refuses `bgl_idx`, because a search on an index is checked against `bgl_ev`). Use `lead_bgl_daily` (day, team, component, level, alert_category, is_alert, signature_id, signature, lines, nodes, midplanes), `lead_os_hourly` (hour, team, service, logger, level, signature_id, signature, lines, instances, requests, http_errors), `bgl_incident`, `bgl_signature_incidents`, `os_instance_durations`, `owner_map`. `search_logs` for the lead should return "not permitted for this role". `nodes` / `instances` / `requests` are distinct per bucket: never sum them.
   - manager: `mgr_bgl_risk` (signature_id, alert_category, component, team, worst_level, alert_lines, episodes_5min, nodes_affected, midplanes_affected, peak_nodes_per_episode, active_days, longest_episode, first/last_seen), `mgr_os_risk` (signature_id, service, team, worst_level, lines, instances_affected, requests_affected, active_hours, first/last_seen; above INFO only), `mgr_rollup_daily` (dataset, day, team, component, category, level, lines). A problem is named by `signature_id` + `alert_category` + component + team, never by text. The views carry factors only; the ranking by blast radius and persistence is your `top_signatures` `rank_by`.
   - New column `signature_id` on `bgl_sig`, `os_sig`, `bgl_incident`, `bgl_signature_incidents`: the join key between the lead's and the manager's views.
+  - **Changed in item 4:** `mgr_os_risk` is now one row per *problem* (dataset, problem, service, team, worst_level, incidents_5min, records, tracebacks, lines, critical_lines, error_lines, warning_lines, requests_affected, first/last_seen), no longer per signature_id. New `mgr_os_lifecycle` (file_group, instances, spawned, spawn p50/p95/max, image p50/max, boot p50/max).
+- **W2 views for your `episodes`, `durations` and `top_signatures` on OpenStack** (`sql/30_views.sql`): `os_problem_incidents` (one row per problem: episodes, records, tracebacks, lines by level, team), `os_incident` (one row per incident), `os_episode` (per line, engineer only), `os_instance_durations` (now with claim_s, image_s, boot_s, run_s, teardown_s, destroy_s, dealloc_s, lifetime_s, source_file, and the real owning team), `os_latency_by_file` (mean, p50, p95, p99 per file and per normal/abnormal group). `os_sig` adds `level_rank`, `record_key`, `problem`, `event`, `took_s`. The OpenStack episodes gap is fixed at 5 minutes in the view, as for BGL; if `episodes` must take 1/5/60 on OpenStack too, the tool needs the parameterised SQL pattern rather than the view.
+- **PLAN.md OpenStack wording (yours to change; numbers verified, `tests/golden/w2_numbers.sql`):** §17 "188 error lines = 8 tracebacks of one bug + 6 CRITICAL auth lines" is wrong (184 + 6 = 190, and only 2 lines are CRITICAL). Suggested: "188 ERROR + CRITICAL lines = 184 lines in 8 tracebacks of one imagecache bug + 4 token-validation lines (2 failed validations, 6 lines with their 2 WARNINGs)". §4 "188 error lines ≈ 8 incidents of 1 bug" has the same problem, and "184 ERROR lines, all from `nova.virt.libvirt.imagecache`" should say *logged by `oslo_service.periodic_task`*, with imagecache in the stack frames. §9 W2 manager "six lines of CRITICAL auth failures" → "2 CRITICAL token-validation failures (6 lines)". `docs/build-plan.md` §0 says "6 CRITICAL auth lines" too; I fix that one.
+- **Ownership trap worth a demo line:** the imagecache traceback is logged by `oslo_service.periodic_task`, so logger-first precedence gives it to `platform-services`, while the imagecache warnings go to `image-service`. One bug, two teams. Your lead answer should say so; changing `data/ownership.csv` is our call together.
   - Your evidence ledger: every role needs `SELECT` / `INSERT` on `exhibit_evidence` once it exists. Add the grants to `sql/50_roles.sql` (one table per GRANT statement) or tell me the table name and I will.
   - `make bootstrap` now runs `roles` last; `sql/30_views.sql`'s `DROP … CASCADE` removes the role views, so never run views without roles after it.
 - **`statement_timeout` is not enforced by the server** (it warns and runs on). Rule 9's 30 s limit on tool paths has to be enforced in your code: e.g. a timer that calls `conn.cancel()`, or run the query in a thread and cancel on timeout. Do not rely on `SET statement_timeout`.
@@ -122,4 +139,5 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
 
 ## Next
 
-- Paste the first prompt from KICKOFF.md.
+- Team stage 3 (Sat 14:00–17:00): views and golden SQL behind `top_signatures`, `trend`, `episodes`, `durations`, `ownership`; write `sql/90_queries.sql` so `make demo` prints W1 and W2 (the Makefile names it; it does not exist yet). W2's numbers are already in `make smoke` §6b–§7a.
+- Before the Q&A: agree with Arnie on the PLAN.md burst correction and on the imagecache ownership split.

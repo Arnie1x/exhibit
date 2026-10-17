@@ -18,8 +18,9 @@
 --                     and the incident views. No per-line relation, no content, no search.
 --   exhibit_manager   risks by blast radius and persistence with the affected component (BGL) or
 --                     service (OpenStack) and the owning team: mgr_* views. No log text (neither
---                     content nor signature text: a problem is a signature_id plus its alert
---                     category), no node IDs, no logger names.
+--                     content nor signature text: a BGL problem is a signature_id plus its alert
+--                     category, an OpenStack problem is our label from sql/30_views.sql), no node
+--                     IDs, no logger names, no instance IDs.
 --
 -- Roles are LOGIN without a password: the server runs with trust auth on 127.0.0.1 only
 -- (CLAUDE.md rule 10). Never put a password in this file.
@@ -69,6 +70,10 @@ GRANT SELECT ON bgl_episode             TO exhibit_engineer;
 GRANT SELECT ON bgl_incident            TO exhibit_engineer;
 GRANT SELECT ON bgl_signature_incidents TO exhibit_engineer;
 GRANT SELECT ON os_instance_durations   TO exhibit_engineer;
+GRANT SELECT ON os_episode              TO exhibit_engineer;
+GRANT SELECT ON os_incident             TO exhibit_engineer;
+GRANT SELECT ON os_problem_incidents    TO exhibit_engineer;
+GRANT SELECT ON os_latency_by_file      TO exhibit_engineer;
 
 -- ---------------------------------------------------------------- lead
 -- Per day (BGL, seven months) and per hour (OpenStack, 2.7 days). nodes / instances / requests
@@ -103,6 +108,9 @@ GRANT SELECT ON lead_os_hourly          TO exhibit_lead;
 GRANT SELECT ON bgl_incident            TO exhibit_lead;
 GRANT SELECT ON bgl_signature_incidents TO exhibit_lead;
 GRANT SELECT ON os_instance_durations   TO exhibit_lead;
+GRANT SELECT ON os_incident             TO exhibit_lead;
+GRANT SELECT ON os_problem_incidents    TO exhibit_lead;
+GRANT SELECT ON os_latency_by_file      TO exhibit_lead;
 GRANT SELECT ON owner_map               TO exhibit_lead;
 GRANT SELECT ON lead_bgl_daily          TO exhibit_engineer;
 GRANT SELECT ON lead_os_hourly          TO exhibit_engineer;
@@ -144,23 +152,34 @@ SELECT
 FROM lines l
 JOIN eps e USING (signature_id);
 
--- One row per OpenStack signature above INFO, per service and team. Lifecycle-duration outliers
--- (the labelled anomalies are INFO-only) are not here: they need os_instance_durations.
+-- One row per OpenStack problem (our label, not log text) above INFO: incidents at the stated
+-- 5-minute gap, records (a traceback is one), lines by level, requests. Lifecycle-duration
+-- outliers (the labelled anomalies are INFO-only) are in mgr_os_lifecycle, not here.
 DROP VIEW IF EXISTS mgr_os_risk;
 CREATE VIEW mgr_os_risk AS
 SELECT
-    'OpenStack' AS dataset, signature_id, service, team,
-    arg_max(level, CASE level WHEN 'CRITICAL' THEN 4 WHEN 'ERROR' THEN 3
-                              WHEN 'WARNING'  THEN 2 ELSE 1 END)   AS worst_level,
-    count(*)                                                        AS lines,
-    count(DISTINCT nullif(instance_id, 'NONE'))                     AS instances_affected,
-    count(DISTINCT nullif(req_id, 'NONE'))                          AS requests_affected,
-    count(DISTINCT date_trunc('hour', ts))                          AS active_hours,
-    min(ts)                                                         AS first_seen,
-    max(ts)                                                         AS last_seen
-FROM os_sig
-WHERE level <> 'INFO'
-GROUP BY signature_id, service, team;
+    'OpenStack' AS dataset, problem, service, team, worst_level,
+    episodes AS incidents_5min, records, tracebacks, lines,
+    critical_lines, error_lines, warning_lines,
+    requests AS requests_affected, first_seen, last_seen
+FROM os_problem_incidents;
+
+-- Instance lifecycle durations as a distribution, without instance IDs.
+DROP VIEW IF EXISTS mgr_os_lifecycle;
+CREATE VIEW mgr_os_lifecycle AS
+SELECT
+    CASE WHEN source_file = 'openstack_abnormal.log' THEN 'abnormal' ELSE 'normal' END AS file_group,
+    count(*)                            AS instances,
+    count(spawn_s)                      AS spawned,
+    quantile_cont(spawn_s, 0.50)        AS spawn_p50_s,
+    quantile_cont(spawn_s, 0.95)        AS spawn_p95_s,
+    max(spawn_s)                        AS spawn_max_s,
+    quantile_cont(image_s, 0.50)        AS image_p50_s,
+    max(image_s)                        AS image_max_s,
+    quantile_cont(boot_s, 0.50)         AS boot_p50_s,
+    max(boot_s)                         AS boot_max_s
+FROM os_instance_durations
+GROUP BY 1;
 
 -- Whole-corpus totals per day, both datasets: component = BGL component or OpenStack service;
 -- category = BGL alert category ('-' = unlabelled) or 'NONE' for OpenStack.
@@ -177,6 +196,9 @@ GROUP BY ts::date, team, service, level;
 
 GRANT SELECT ON mgr_bgl_risk     TO exhibit_manager;
 GRANT SELECT ON mgr_os_risk      TO exhibit_manager;
+GRANT SELECT ON mgr_os_lifecycle TO exhibit_manager;
+GRANT SELECT ON mgr_os_lifecycle TO exhibit_lead;
+GRANT SELECT ON mgr_os_lifecycle TO exhibit_engineer;
 GRANT SELECT ON mgr_rollup_daily TO exhibit_manager;
 GRANT SELECT ON mgr_bgl_risk     TO exhibit_lead;
 GRANT SELECT ON mgr_os_risk      TO exhibit_lead;
@@ -199,7 +221,8 @@ RESET ROLE;
 SET ROLE exhibit_manager;
 SELECT 'manager' AS role, (SELECT sum(alert_lines) FROM mgr_bgl_risk) AS bgl_alert_lines,
        (SELECT sum(episodes_5min) FROM mgr_bgl_risk) AS bgl_episodes_5min,
-       (SELECT sum(lines) FROM mgr_rollup_daily) AS all_lines;
+       (SELECT sum(lines) FROM mgr_rollup_daily) AS all_lines,
+       (SELECT sum(incidents_5min) FROM mgr_os_risk) AS os_incidents_5min;
 RESET ROLE;
 
 \echo '--- role scope: each statement below MUST fail with permission denied ---'

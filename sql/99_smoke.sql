@@ -53,10 +53,23 @@ GROUP BY 1 ORDER BY 1;
 \echo '=== 6. OpenStack: the whole error surface is one bug ==='
 SELECT level, count(*) AS lines FROM os_ev GROUP BY level ORDER BY 2 DESC;
 
+\echo '=== 6b. OpenStack lines above INFO -> incidents (5-minute gap) -> records ==='
+-- 184 ERROR lines are 8 tracebacks (one record each) of one image cache bug; the only 2
+-- CRITICAL lines are 2 token-validation incidents of 3 lines each.
+SELECT problem, worst_level, lines, episodes AS incidents_5min, records, tracebacks,
+       critical_lines, team
+FROM os_problem_incidents ORDER BY worst_rank DESC, episodes DESC;
+
 \echo '=== 7. labelled anomalies are duration outliers, not level outliers ==='
 -- The four injected-anomaly VMs must appear at the top. They do: positions 1-4.
-SELECT instance_id, lines, spawn_s, build_s, EXTRACT(EPOCH FROM lifetime) AS lifetime_s
+-- image_s (Creating image -> VM Started) carries the extra time; boot_s stays near its median.
+SELECT instance_id, lines, spawn_s, build_s, image_s, boot_s, lifetime_s
 FROM os_instance_durations ORDER BY coalesce(spawn_s, build_s) DESC NULLS LAST LIMIT 6;
+
+\echo '=== 7a. API latency per file: the abnormal file is not slower ==='
+SELECT file_group, source_file, api_calls, round(mean_s, 4) AS mean_s, round(p50_s, 4) AS p50_s,
+       round(p95_s, 4) AS p95_s, round(p99_s, 4) AS p99_s
+FROM os_latency_by_file ORDER BY file_group, source_file;
 
 \echo '=== 7b. the four labelled anomalies from anomaly_labels.txt ==='
 SELECT instance_id, spawn_s, build_s,
