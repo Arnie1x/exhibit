@@ -31,7 +31,7 @@ this and require us to say so, so here is exactly what each was used for:
 
 | Assistant | Used by | For |
 |---|---|---|
-| **Claude Code** (Anthropic, Claude models) | Person A | the SQL lane: the derived tables, the indexes, the role views, the investigations in `sql/90_queries.sql`. Also connected to the SereneDB documentation MCP server (a challenge prerequisite) |
+| **Anthropic Claude** (Claude models, in an AI coding assistant) | Person A | the SQL lane: the derived tables, the indexes, the role views, the investigations in `sql/90_queries.sql`. Also connected to the SereneDB documentation MCP server (a challenge prerequisite) |
 | **Hermes Agent** (Nous Research, `deepseek-v4.1-flash` via opencode-go) | Person B | the tool lane: the persona registry, the result envelope, the analysis tools, the evidence ledger, the answer lints, the eval harness, and this repository's documentation |
 
 What that means in practice, and what it does not:
@@ -57,7 +57,7 @@ the brief does not supply one — and it is documented as our construction, not 
 ## Prerequisites the track asked for
 
 * SereneDB starred on GitHub (both team members).
-* The SereneDB documentation MCP server connected to a coding assistant (Person A, Claude Code).
+* The SereneDB documentation MCP server connected to a coding assistant (Person A's assistant).
 
 ## A note on the numbers people ask about
 

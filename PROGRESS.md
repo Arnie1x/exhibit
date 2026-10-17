@@ -1,6 +1,6 @@
 # PROGRESS — Adnan's lane
 
-Deadline: Sun 18 Oct, 23:59 · Current team stage: 3 (Adnan's part done Sat 13:05, ahead of the 14:00–17:00 window) · Status: Q&A prep next; Arnie's Stage 3 tools pending
+Deadline: Sun 18 Oct, 23:59 · Current team stage: 6 (Sat 17 Oct evening, a day early) · Status: Stage 6 closed on branch `stage-6-adnan` (validation script, bench, LICENSE, slides, Windows fresh clone); stage 7 (video) next
 
 ## Stage log (team plan §11)
 
@@ -10,10 +10,10 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 3 (Adnan's part done Sat 13:0
 | 2 MCP skeleton | Sat 12:00–14:00 | Golden SQL for the first three tools | |
 | 3 W1/W2 tools | Sat 14:00–17:00 | Views for `top_signatures`, `trend`, `episodes`, `durations`, `ownership` | SQL side done Sat 13:05: 3 views, `sql/90_queries.sql` (`make demo`) prints W1 and W2 per role under `SET ROLE`, every number computed and independently verified; 3 §9 statements wrong, corrections handed to Arnie. Tool side (Arnie) pending |
 | Q&A | Sat 17:00–20:00 | Questions from team plan §13; answers into `PLAN.md` | |
-| 4 Roles, contract, lints | Sat 20:00–24:00 | Role views and grants | |
-| Sleep | Sun 00:00–08:00 | OTel bench in the background | |
-| 5 Validation, eval | Sun 08:00–12:00 | Ground-truth validation script | |
-| 6 README, clean-check, slides | Sun 12:00–15:00 | Data, loader, ownership, limitations sections | |
+| 4 Roles, contract, lints | Sat 20:00–24:00 | Role views and grants | Done early (Arnie's lints, `0c1d9df`); roles were in since item 3 |
+| Sleep | Sun 00:00–08:00 | OTel bench in the background | Bench done Sat evening instead (item 7) |
+| 5 Validation, eval | Sun 08:00–12:00 | Ground-truth validation script | Done Sat 16:25: `scripts/validate_ground_truth.py` (item 6). PLAN §11 called it done earlier, but the script had never been committed |
+| 6 README, clean-check, slides | Sun 12:00–15:00 | Data, loader, ownership, limitations sections | Done Sat evening (item 8): LICENSE, README fixes, the slide deck, fresh clone on Windows |
 | 7 Video | Sun 15:00–19:00 | Real numbers on screen | |
 | 8 Submission | Sun 19:00–22:00 | Team plan §15 checklist | |
 
@@ -21,24 +21,24 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 3 (Adnan's part done Sat 13:0
 
 | Requirement | Status | Proof (file, command or evidence ID) |
 | --- | --- | --- |
-| An answer for each role with relevant evidence, fitting detail and a role-suited next step | ☐ | |
-| Retrieval and aggregation used on BGL and on OpenStack | ☐ | |
-| At least one answer uses full-text search | ☐ | |
-| At least one whole-corpus aggregation (per dataset or team), with scope and filters stated | ◐ SQL done, tool pending | `sql/90_queries.sql` W1 L1 (`ownership_coverage`, per team) and L3 (lines vs incidents per team), `logs/demo-pass3.log` |
-| Practical recommendations: what to check or fix first, and why | ☐ | |
-| Tools with clear descriptions of purpose, inputs and outputs | ☐ | |
-| Executed queries and results shown; hypotheses and limitations labelled; numeric lint passes | ☐ | |
-| Clean checkout: start SereneDB, load BGL and OpenStack, start the agent (`make clean-check`) | ☐ | |
-| Schema, loading scripts and ownership table in the repo (organizers' Q&A) | ☐ | |
-| Public repo, MIT licence, README covering workflow, setup, running and limitations | ☐ | |
-| Disclosure section: models, tools, what was built in the window | ☐ | |
-| Worked investigations W1 and W2 with search and aggregation, and what the data does and does not establish | ◐ SQL path done, tool and answer path pending | `make demo` = `sql/90_queries.sql`: W1 search (`@@ ts_phrase` on `bgl_idx`) + aggregation, W2 aggregation, "Not established" lines per manager step |
-| Video of at most 5 minutes plus a 3-minute cut, and slides | ☐ | |
-| SereneDB starred on GitHub; docs MCP connected | ☐ | |
-| Optional: workspace index (re-probed; result reported either way) | ☐ | |
-| Optional: huge data (OTel Parquet) with data volume, times and machine | ☐ | |
+| An answer for each role with relevant evidence, fitting detail and a role-suited next step | ◐ tools and lints done; the answers themselves are the video's | `make demo` per role; `make eval` 15/15 across the three roles (answers pass `lint_answer`) |
+| Retrieval and aggregation used on BGL and on OpenStack | ☑ | `search_logs` / `count_events` / `episodes` / `durations` on both; `make demo` W1 (BGL) and W2 (OpenStack) |
+| At least one answer uses full-text search | ☑ | `search_logs` (`@@ ts_phrase` on `bgl_idx`), eval Q03; demo W1 E2 |
+| At least one whole-corpus aggregation (per dataset or team), with scope and filters stated | ☑ | `count_events(bgl, group_by=team)` envelope (`scope`, `measure`); demo W1 L1, L3 |
+| Practical recommendations: what to check or fix first, and why | ◐ the ranked evidence exists; the wording is the client's | demo W1 M2 (risk order with reasons), W1 L4 (ciod still growing, Lustre healed) |
+| Tools with clear descriptions of purpose, inputs and outputs | ☑ | `src/exhibit/server.py` (12 tools, descriptions), README tool table |
+| Executed queries and results shown; hypotheses and limitations labelled; numeric lint passes | ☑ | every envelope carries `query`; `lint_answer`; `make eval` lints each answer |
+| Clean checkout: start SereneDB, load BGL and OpenStack, start the agent (`make clean-check`) | ☑ | Arnie: Linux clean clone; Adnan: Windows fresh clone (item 8) |
+| Schema, loading scripts and ownership table in the repo (organizers' Q&A) | ☑ | `sql/10_derive.sql` … `sql/55_evidence.sql`, `scripts/parse.py`, `data/ownership.csv` |
+| Public repo, MIT licence, README covering workflow, setup, running and limitations | ◐ public at submission | `LICENSE` (item 8), README quickstart, Windows note, limitations |
+| Disclosure section: models, tools, what was built in the window | ☑ | `docs/disclosure.md` (Arnie) |
+| Worked investigations W1 and W2 with search and aggregation, and what the data does and does not establish | ☑ | `make demo`; `docs/validation.md`; "Not established" per manager step |
+| Video of at most 5 minutes plus a 3-minute cut, and slides | ◐ slides done, video is stage 7 | slide deck (item 8), every number with its source command |
+| SereneDB starred on GitHub; docs MCP connected | ◐ docs MCP connected (`.mcp.json`, used for the bench) | starring is a click each of us makes |
+| Optional: workspace index (re-probed; result reported either way) | ◐ re-probed, not a tool | `docs/capabilities.md` §3 (partial index restricts on pattern B) |
+| Optional: huge data (OTel Parquet) with data volume, times and machine | ☑ | `make bench`, `make bench-ladder`, `bench/README.md`, `docs/capabilities.md` §11 (item 7) |
 | Bonus: role scope enforced by the database | ☑ | `sql/50_roles.sql` scope proof (`logs/roles-s3.log`: 3 roles read their views, 6 statements refused); `make demo` runs every step under its role with `SET ROLE` |
-| Bonus: logs correlated with traces or metrics | ☐ | |
+| Bonus: logs correlated with traces or metrics | ◐ log-side only | bench B5: one OTel trace id → its log lines across 5 services (no span data, so no real trace join) |
 
 ## Done
 
@@ -105,6 +105,48 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 3 (Adnan's part done Sat 13:0
   | `make bootstrap smoke` green, idempotent | full rebuild ×3 (`logs/s3-*-{1,2,3}.log`) | 14.4 s; smoke, roles and demo output identical across rebuilds; 4,747,963 / 207,812; 348,460 → 19,250 → 1,377 | PASS |
   | Role scope holds | `sql/50_roles.sql` scope proof | lead reads 19,250 / 1,377 from `bgl_episode_sensitivity`; manager refused `bgl_signature_stats` (and 3 others), lead refused 2 | PASS |
 
+- **Item 5, audit of merged `main` (Sat 17 Oct, 16:05–16:15).** Pulled `dbddf95`, read PLAN / PROGRESS / Makefile / README / disclosure / the code paths, and ran everything from this Windows box. The container had been started without `SERENEDB_HOST_AUTH_METHOD=trust`, so the Python side could not log in from the host; recreated it with the flag (volume kept), and my database predated `sql/55_evidence.sql`, so a full bootstrap first.
+
+  | Check | Result |
+  | --- | --- |
+  | `make bootstrap` (derive → index → views → roles → evidence) | 17.8 s; the only errors are the scope proof's 6 intended denials, identical to `logs/roles-s3.log` |
+  | `make smoke`, `make demo` | exit 0; demo identical to `logs/demo-pass3.log` apart from timings |
+  | `make check` (Arnie) | **101/101**, stock MCP client PASS, once `PYTHONUTF8=1` (cp1252 console cannot print `✓`; now exported by the Makefile) |
+  | `make eval` (Arnie) | **15/15**, 19/19 figures, 6 refusals |
+  | W2 ownership split (Arnie's item 4) | holds: `oslo_service.periodic_task` ERROR 184 → platform-services; `nova.virt.libvirt.imagecache` WARNING 3,059 → image-service; auth_token 4 → identity |
+  | Gaps found | `scripts/validate_ground_truth.py` cited by PLAN §7/§11, `docs/disclosure.md` and `evals/golden.sql` but never committed (item 6); `sql/70_bench.sql` missing so `make bench` failed (item 7); no `LICENSE`; Makefile `up` without the auth flag; README stale (94 checks, 11 tools, `sql/90` "Stage 3"); a stray empty `-Force/` directory |
+  | Defects in Arnie's files (not edited; handoff round 4) | `durations` orders without a tie-breaker; the stock client asserts 11 of 12 tools; `.mcp.json` registers only the docs server; PLAN §9 reads the M2 rank sum (23) as a position; `evals/golden.sql` and `docs/disclosure.md` wording |
+
+- **Item 6, ground-truth validation (Sat 17 Oct, 16:15–16:25).** `65ed218 feat(validate): …`. `scripts/validate_ground_truth.py` (`make validate`) runs outside the agent: it reads `anomaly_labels.txt` from disk, asserts that no MCP tool and no relation or column carries the key, scores the lead's own `durations` ranking (evidence id printed, so `verify_evidence` re-runs it), and for BGL measures whether text-only signatures reproduce the label (the label is visible to the agent, so the script says so instead of claiming blindness). `docs/validation.md` writes it up.
+
+  | Expectation (13/13, identical over three runs) | Result |
+  | --- | --- |
+  | Out of reach | none of the 12 tools reads labels; 0 relations, 0 columns named after the key |
+  | OpenStack: labelled instances by spawn, of 2,069 | positions 1, 2, 3, 4 (50.72 / 41.81 / 31.27 / 29.46 s); agent's top 10 = scored top 10; position 5 unlabelled (`d7d68893`, 26.69 s, abnormal file); image phase alone also 1–4; chance 1 in 761,325,852,001 |
+  | Negative controls | 0 of their 100 lines above INFO; API latency mean 0.2340 vs 0.2341 s, p95 0.3771 vs 0.3826 s |
+  | BGL: signature vs label | 99.9998% line agreement (9 lines differ), 4 of 29,670 signatures mixed; detector TP 348,454 / FP 3 / FN 6 (precision 0.999991, recall 0.999983) vs FATAL/FAILURE filter precision 0.406502, recall 1 |
+  | Found on the way | `arg_max` broke a 1–1 tie differently between runs (TP 348,455 then 348,454): ties now go to `-` via `row_number()`; `= ANY(%s)` needs `::VARCHAR[]`; `NULL`s sort last under `DESC` (`docs/capabilities.md` §4) |
+
+- **Item 7, huge-datasets bench (Sat 17 Oct, 16:25–18:05).** `sql/70_bench.sql` (`make bench`, `BENCH_SECONDS`), `bench/run_ladder.sh` (`make bench-ladder`, sizes each index from its directory under `engine_search/`), `bench/README.md`, `docs/capabilities.md` §11. Over an hour went into nine server crashes before the cause showed: **`enable_external_file_cache` (on by default) defeats row-group pruning**, and big unpruned remote reads end in SIGSEGV (same PC every time). With it off, a time slice of the 1B-row file prunes to its row groups and an inverted index on a view over it builds. Filtering on `"Timestamp"` (ns) instead of `"TimestampTime"` read the whole 1.95 GB column (7 min 57 s for one second of data).
+
+  | Measured (16 vCPU, ~6 MiB/s to S3) | 1 s slice | 10 s slice | 30 s / 60 s |
+  | --- | --- | --- | --- |
+  | Row groups touched (of 1,624) | 2 | 10 | 27 / 52 |
+  | `Body` read cold, bytes in | 99.8 MiB (of 9.07 GB) | 142.7 MiB | 233.8 / 367.3 MiB |
+  | Index build on the remote view | 536,041 rows, 24.8–32.2 s | 5,275,597 rows, 60.0 s | **SIGSEGV** both |
+  | Index on disk | 14,676 KB | 136,472 KB | — |
+  | Phrase + facet on the slice index | 28,520 hits, 8–18 ms | 290,473 hits, 13 ms | — |
+  | Footer metadata / `count(*)` of 1B rows | 1.4–3.3 s / 0.1–0.8 s | | |
+  | Local: index on a view over `bgl.parquet` vs same columns on `bgl_ev` | 0.69–1.25 s vs 1.07–1.99 s; both 152,734 (phrase) and 350,567 (`ciod`), = `bgl_idx` | | |
+
+- **Item 8, Stage 6 (Sat 17 Oct, 17:30–18:30).** `LICENSE` (MIT); `.gitattributes` (scripts, Makefile and SQL stay LF on a Windows checkout, where `core.autocrlf` would otherwise give bash `set -euo pipefail\r`); README (validation and huge-data sections, 101 checks, 12 tools, repo map, Windows note, limitations); `docs/slides.md` (every slide figure → its command); the slide deck (13 slides, Claude artifact, private until shared). The team plan §11 Stage 6 gate on a machine other than Arnie's:
+
+  | Gate | Command or proof | Result | Verdict |
+  | --- | --- | --- | --- |
+  | Fresh clone runs the whole sequence | `git clone` of this branch into the scratchpad; the Makefile recipes by hand (no `make`): derive, index, views, roles, evidence, smoke, demo, `uv sync`, check, client, eval, validate, bench | all exit 0; bootstrap 25 s; smoke and demo identical to the reference logs; 101/101; client PASS; 15/15; 13/13; bench 92 s | PASS |
+  | Every number on a slide independently re-derived | `sql-verifier`, fresh SQL on the raw Parquet (views only where the claim is about a view), 17 claim groups | **17/17 MATCH**; one wording fix applied: the 3,638 belongs to ciod `… Link has been severed` (two other signatures share the CioStream prefix: 588 and 443) | PASS |
+  | Slides | 13 slides, each footer names the command behind its figures | published; shared with Arnie is a click on Share | PASS |
+
 ## Decisions
 
 - The team plan governs schedule, split and stage numbers; `docs/build-plan.md` is the design reference.
@@ -131,6 +173,10 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 3 (Adnan's part done Sat 13:0
 | Stage 3 golden | 76 / 76 rows `t`, two runs | `tests/golden/stage3_numbers.sql` → `logs/golden-stage3.log` | Sat 12:58 |
 | Ranking inversion | DTLB first by lines (152,734), 117 incidents, 12th by blast radius + persistence; `rts panic` first (3,394 nodes, 124 days) | `make demo` W1 E1, M2 | Sat 12:50 |
 | BGL clock | `ts` = US Pacific wall clock (epoch − 7 h to 2005-10-30 01:18, − 8 h after); 49 rows in the repeated hour, 0 alerts | `docs/data-notes.md` | Sat 12:35 |
+| Bootstrap on merged `main` | 17.8 s (derive 9.4, index 3.9, views 1.3, roles 2.2, evidence 0.6) | the five recipes through `docker exec -i serenedb psql … -v ON_ERROR_STOP=1` | Sat 16:12 |
+| Fresh clone, Windows (Stage 6 gate) | bootstrap 25 s; smoke and demo identical to the reference logs; check 101/101 + stock client PASS; eval 15/15; validate 13/13; bench exit 0 in 92 s | `git clone` of `stage-6-adnan`, every Makefile recipe by hand (no `make` here), `PYTHONUTF8=1` | Sat 18:15 |
+| Ground truth | 4/4 labelled at 1–4 of 2,069; BGL signature/label agreement 99.9998%, TP 348,454 FP 3 FN 6 | `make validate` (three identical runs) | Sat 16:25 |
+| Remote OTel bench | 1 s: 536,041 rows indexed in 24.8–32.2 s, 14,676 KB; 10 s: 5,275,597 rows in 60.0 s, 136,472 KB; 30 s and 60 s: SIGSEGV | `make bench`, `make bench-ladder`, `BENCH_LADDER="30"` | Sat 18:05 |
 
 ## Background jobs
 
@@ -179,18 +225,17 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 3 (Adnan's part done Sat 13:0
 - README's `APPSEV` "7,036 episodes" is per **alert category** × midplane, not per signature like the rest of that paragraph (now labelled; checked: 7,036 by category × midplane, 7,165 summed over its 5 signatures).
 - On a search table the partial-index "rows outside" count came out 87,443 in the probe and 87,442 by hand (the complement is 87,442). Pattern A only, not used; recorded, not chased.
 
-- The Makefile's psql targets pass host paths (`-f sql/…`), so they only work with a host `psql`. With `PSQL='docker exec -i serenedb psql …'` (this box, and any judge without psql) they need `< sql/…` instead. Stage 6 (`make clean-check`) item, to agree with Arnie (the Makefile is shared).
-- Arnie's `make check` (`uv run exhibit-check`, the MCP client) was not run on this box after the merge: it connects from the host, and the host needs a password for `postgres` (Handoffs). The merge touched no `sql/` file, and `make demo` / `make smoke` were green just before it.
-- No `make` on this Windows box: Stage 3's gate ran each Makefile recipe through `docker exec -i serenedb psql -h 127.0.0.1 -p 7890 -U postgres` with the file on stdin (commands in "Measured numbers").
+- ✔ Fixed by Arnie (round 2): the Makefile's psql targets read `< sql/…`, so `PSQL='docker exec -i serenedb psql …'` works.
+- ✔ Resolved (item 5): `make check` / `make eval` now run from this box (101/101, 15/15) since the container has `SERENEDB_HOST_AUTH_METHOD=trust`.
+- No `make` on this Windows box: every gate here ran the Makefile recipes through `docker exec -i serenedb psql -h 127.0.0.1 -p 7890 -U postgres` with the file on stdin, and `MSYS_NO_PATHCONV=1` (Git Bash otherwise rewrites `/data/...`).
+- Remote index ceiling (item 7): 30 s and 60 s slices of the OTel file crash 26.09.1.3 on this box during `CREATE INDEX`; 10 s works. Not chased further: worth one try on Arnie's arm64 box (12 GB) before the video, if the bonus slide should show a bigger slice.
+- The SereneDB crash (SIGSEGV, PC `0x27fb407`) is reproducible from `docs/capabilities.md` §11; reporting it to the SereneDB team is a decision for both of us (it is outward-facing).
 
 ## Next
 
-- Before the Q&A (Sat 17:00): agree with Arnie on PLAN.md §9 line 316 (82% of alert lines; 8 nodes per incident), the imagecache ownership split, and the host password for `postgres` on Docker Desktop.
-- When Arnie's Stage 3 tools land: run each tool once per demo step and compare it with `logs/demo-pass3.log` (same numbers, same order).
-- Stage 4 (Sat 20:00–24:00): evidence-ledger grants in `sql/50_roles.sql` once the table name is known.
-
-- Team stage 3 (Sat 14:00–17:00): views and golden SQL behind `top_signatures`, `trend`, `episodes`, `durations`, `ownership`; write `sql/90_queries.sql` so `make demo` prints W1 and W2 (the Makefile names it; it does not exist yet). W2's numbers are already in `make smoke` §6b–§7a.
-- Before the Q&A: agree with Arnie on the PLAN.md burst correction and on the imagecache ownership split.
+- Stage 7 (video, Sun 15:00–19:00): the deck's speaker notes are a first script; every on-screen number has its command in the slide footer and in `docs/slides.md`.
+- Arnie: round 4 handoff below (the `.mcp.json` exhibit entry is the one with judging impact).
+- Both: share the deck with Arnie, export it to PDF for submission; star SereneDB on GitHub (a listed prerequisite, a click each).
 
 ## Handoff back (Arnie, Stage 3, Sat 17 Oct)
 
@@ -372,7 +417,7 @@ halves, which is where the bugs were:**
   `make clean-check` once to be sure.
 * `docs/disclosure.md` now exists (the rules require disclosing models, tools and datasets, and the
   README pointed at a file that was not there). It states plainly which assistant wrote which lane —
-  Claude Code for yours, Hermes for mine — and that no model runs in the answer path.
+  an Anthropic Claude assistant for yours, Hermes for mine — and that no model runs in the answer path.
 
 **What I would do next, in order:** nothing is blocking the submission.
 (1) `make demo` + `make eval` on the merged branch, and the 5-minute video;
@@ -380,3 +425,62 @@ halves, which is where the bugs were:**
 "twelve categories" (BGL has 42), "five severity levels" (we measure six), and the 3-vs-5-minute
 demo question;
 (3) if there is time on Sunday, the bonus ladder (§14) — the bench target is the only broken one.
+
+---
+
+## Handoff to Arnie, round 4 — audit of merged `main`, Stage 5's missing script, the bench, the slides (Adnan, Sat 17 Oct)
+
+Branch **`stage-6-adnan`**, not pushed. I ran your list in order: pulled `dbddf95`, read round 3,
+ran `make demo` and `make eval` from Windows (both green once the container had the auth flag:
+**101/101, stock client PASS, eval 15/15**), and did not reopen anything in your "already settled"
+list. The W2 split holds (184 ERROR → platform-services, 3,059 warnings → image-service).
+
+**What this branch adds (all mine unless marked):**
+
+1. **`scripts/validate_ground_truth.py` did not exist.** PLAN §7 and §11, `docs/disclosure.md` and
+   `evals/golden.sql` all cite it; it was never committed. It exists now (`make validate`, 13/13,
+   `docs/validation.md`). PLAN §11's Stage 5 row ("ground truth was already in") is now true; it was
+   not when written.
+2. **`make bench` works** (`sql/70_bench.sql`, `bench/run_ladder.sh`, `bench/README.md`,
+   `docs/capabilities.md` §11). The one fact everyone touching remote Parquet needs:
+   **`SET enable_external_file_cache = false` before any remote read.** With the default (on), a
+   time-filtered read is not pruned and big reads kill the server (SIGSEGV, same PC, every time).
+   With it off, a slice of the 1B-row file is pruned to its row groups and an index on a view over it
+   builds and searches. Ceiling on my box: 10 s of data (5,275,597 rows) indexes in 60 s; 30 s and
+   60 s of data crash the build. Also: filter on `"TimestampTime"`, never `"Timestamp"` (ns).
+3. **Makefile** (shared, small): `up` passes `-e SERENEDB_HOST_AUTH_METHOD=trust` (README had it, the
+   target did not); `export PYTHONUTF8 := 1` (your checks print `✓`, which a Windows console cannot
+   encode); targets `validate`, `bench` (`BENCH_SECONDS`), `bench-ladder`.
+4. **`LICENSE`** (MIT; README said MIT, there was no file), README fixes (101 checks, 12 tools,
+   repo map, Windows note), `docs/capabilities.md` §4 and §11.
+5. **The slide deck** (team plan Stage 6's open item): 13 slides, every number with its source
+   command in the footer, private until we share it. Link in chat; speaker notes on each slide.
+
+**In your files — found, not edited (your call each):**
+
+- `src/exhibit/analytics.py:524` — `durations` orders `ORDER BY {phase} DESC LIMIT %s` with no
+  tie-breaker. `os_instance_durations` has 292 distinct `spawn_s` values over 2,066 instances (ties
+  from position 9 on: 21.85 ×2), so tied rows can swap between runs and a stored hash can stop
+  matching. Suggest `ORDER BY {phase} DESC NULLS LAST, {src.key}`. (`NULLS LAST` is this engine's
+  default even under `DESC`, unlike PostgreSQL; writing it keeps the statement portable.)
+- `scripts/stage2_mcp_client.py:46` — `expected` lists 11 tools; `lint_answer` is the 12th and is
+  not asserted, so the client prints "all 11 tools are exposed" while 12 are.
+- **`.mcp.json` registers only `serenedb-docs`, not exhibit itself.** A judge whose MCP client reads the
+  repo's `.mcp.json` gets no exhibit tools until they add the server by hand. For the MCP-server award:
+  `"exhibit": {"command": "uv", "args": ["run", "exhibit-mcp"]}` (packaging is yours).
+- `PLAN.md:348` — "12th by blast radius and 23rd by blast radius + persistence": 23 is DTLB's rank
+  **sum** (blast radius 12 + persistence 11); its **position** on the combined measure is also 12th
+  (`make demo` W1 M2, `risk_position` 12). Suggest "12th by blast radius and 12th on the combined
+  measure (rank sum 23)". `PLAN.md:274` still says 80 checks (101 now).
+- `evals/golden.sql:6` — attributes "76 of 76 checks" to `scripts/validate_ground_truth.py`; those
+  76 are `tests/golden/stage3_numbers.sql`. The validation script runs 13 expectations.
+- `docs/disclosure.md:67` — "Both were raised with the challenge owners at the Q&A" was written
+  before the Q&A; and "the brief's 44% figure was ours to correct" reads as if 44% were the brief's
+  error, while 44% is our measured figure (our earlier 39% was the wrong one). Line 42 says "his
+  views"; "those views" avoids guessing pronouns.
+- `src/exhibit/server.py` — `verify_evidence` raises an unhandled `UndefinedTable` when the ledger
+  table is missing (a database bootstrapped before `sql/55_evidence.sql`); a refusal-style message
+  would be friendlier. Only seen on my stale database.
+
+**Not done, deliberately:** nothing pushed; no edits to your files; PLAN.md untouched (§9, §11,
+§14 item 3 and the bench result are yours to fold in, with the numbers above).
