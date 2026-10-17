@@ -4,7 +4,7 @@ DATA  ?= /data/loghub          # path INSIDE the SereneDB container
 MAP   ?= /data/ownership.csv   # ownership table, visible to the container
 CACHE ?= $(PWD)/data           # mounted to /data in the container
 
-.PHONY: help doctor up down fetch parse probe derive index bootstrap smoke demo bench eval roles mcp clean-check
+.PHONY: help setup doctor up down fetch parse probe derive index bootstrap smoke demo bench eval roles mcp check clean-check
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-13s\033[0m %s\n", $$1, $$2}'
@@ -45,6 +45,16 @@ roles: ## role views + GRANTs (scope enforced in the database)
 	$(PSQL) -f sql/50_roles.sql
 
 bootstrap: derive index views roles ## full rebuild from raw Parquet (idempotent, ~20 s); roles last, views' CASCADE drops them
+
+setup: ## create the venv and install dependencies (uv)
+	uv sync
+
+mcp: ## run the exhibit MCP server on stdio (point any MCP client at it)
+	uv run exhibit-mcp
+
+check: ## Stage 2 acceptance: tool numbers vs make smoke, then a stock MCP client
+	uv run exhibit-check
+	uv run python scripts/stage2_mcp_client.py
 
 smoke: ## the three headline numbers, printed for comparison
 	$(PSQL) -f sql/99_smoke.sql
