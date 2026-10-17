@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Parse Loghub BGL + OpenStack into Parquet for SereneDB.
 
-Run inside a python:3.12-slim container (needs pyarrow):
+Run (needs pyarrow; `make parse` does exactly this):
 
-  docker run --rm -v /home/ubuntu/serenedb/data/loghub:/data -w /data python:3.12-slim \
-    bash -c "pip install -q pyarrow && python parse.py"
+  uv run --no-project --with pyarrow python -X utf8 scripts/parse.py --in data/loghub --out data/loghub
 
-Outputs next to this script:
+-X utf8 matters on Windows: without it open() decodes with the ANSI code page, not UTF-8, and
+the 8 BGL lines that carry non-ASCII bytes come out differently from a Linux parse.
+Without --in/--out both default to this script's folder.
+
+Outputs in --out:
   bgl.parquet        one row per BGL log line (4.7M)
   openstack.parquet  one row per OpenStack log line (207,820)
 
@@ -32,6 +35,7 @@ searching the token list. Any text found before the triple is folded back into t
 Counting matters here: the brief asks for accurate counts and warns against treating matching
 lines as separate incidents, so a parser that quietly drops 0.7% of rows is a scoring risk.
 """
+import argparse
 import os
 import re
 import sys
@@ -176,8 +180,15 @@ def write_parquet(cols, out_path, schema):
 
 
 def main():
-    bgl_path = os.path.join(HERE, "BGL.log")
-    os_paths = [os.path.join(HERE, n) for n in
+    # --in/--out as the Makefile passes them; both default to this script's folder (the old
+    # in-container usage above).
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--in", dest="src", default=HERE, help="folder holding BGL.log and openstack_*.log")
+    ap.add_argument("--out", dest="dst", default=HERE, help="folder for bgl.parquet and openstack.parquet")
+    args = ap.parse_args()
+
+    bgl_path = os.path.join(args.src, "BGL.log")
+    os_paths = [os.path.join(args.src, n) for n in
                 ("openstack_normal1.log", "openstack_normal2.log", "openstack_abnormal.log")]
     for p in [bgl_path, *os_paths]:
         if not os.path.exists(p):
@@ -191,7 +202,7 @@ def main():
         ("node_repeat", pa.string()), ("log_type", pa.string()), ("component", pa.string()),
         ("level", pa.string()), ("content", pa.string()),
     ])
-    write_parquet(bgl, os.path.join(HERE, "bgl.parquet"), bgl_schema)
+    write_parquet(bgl, os.path.join(args.dst, "bgl.parquet"), bgl_schema)
 
     os_cols = parse_openstack(os_paths)
     os_cols["timestamp"] = pa.array(os_cols.pop("ts_text"), type=pa.string())
@@ -204,7 +215,7 @@ def main():
         ("status_code", pa.int32()), ("latency_s", pa.float64()),
         ("is_abnormal_file", pa.bool_()), ("message", pa.string()),
     ])
-    write_parquet(os_cols, os.path.join(HERE, "openstack.parquet"), os_schema)
+    write_parquet(os_cols, os.path.join(args.dst, "openstack.parquet"), os_schema)
 
 
 if __name__ == "__main__":

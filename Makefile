@@ -20,13 +20,14 @@ up: ## start SereneDB (arm64-safe tag: 26.09.1.3)
 down: ## stop it
 	docker stop serenedb
 
-fetch: ## download the two Loghub archives (~770 MB) into data/
-	mkdir -p data && cd data && \
+fetch: ## download + unpack the two Loghub archives (63 MB, ~800 MB unpacked) into data/loghub/
+	mkdir -p data/loghub && cd data/loghub && \
 	curl -sSL -o BGL.zip 'https://zenodo.org/records/8196385/files/BGL.zip?download=1' && \
-	curl -sSL -o OpenStack.tar.gz 'https://zenodo.org/records/8196385/files/OpenStack.tar.gz?download=1'
+	curl -sSL -o OpenStack.tar.gz 'https://zenodo.org/records/8196385/files/OpenStack.tar.gz?download=1' && \
+	unzip -o -q BGL.zip BGL.log && tar -xzf OpenStack.tar.gz
 
-parse: ## raw .log -> Parquet (zero lines lost; see docs/data-notes.md)
-	python3 scripts/parse.py --in data --out data
+parse: ## raw .log -> Parquet in data/loghub/ (= $(DATA) in the container; parity in docs/data-notes.md)
+	uv run --no-project --with pyarrow python -X utf8 scripts/parse.py --in data/loghub --out data/loghub
 
 probe: ## re-measure SereneDB capabilities (Stage 0; the file docs/capabilities.md is the result)
 	$(PSQL) -f sql/00_probe.sql

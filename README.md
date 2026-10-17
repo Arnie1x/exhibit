@@ -35,8 +35,9 @@ Both rankings are in the demo, side by side. That is what "making sense of logs"
 docker run -d --name serenedb -p 127.0.0.1:7890:7890 \
   -v serenedb-data:/var/lib/serenedb -v "$PWD/data":/data serenedb/serenedb:26.09.1.3
 
-# 2. Raw Loghub data (BGL + OpenStack, ~770 MB from Zenodo record 8196385)
-make fetch
+# 2. Raw Loghub data (BGL + OpenStack from Zenodo record 8196385: 63 MB of archives,
+#    ~800 MB unpacked into data/loghub/), then parse to Parquet (BGL 4,747,963 of 4,747,963 lines)
+make fetch parse
 
 # 3. Derive + index  (~20 seconds total: 14s derive, 5.6s index)
 make bootstrap
