@@ -334,7 +334,12 @@ evidence:
   152,182 lines, 6h21m48s**, while `top_signatures by=nodes` puts `Microloader Assertion` on top and
   `by=episodes` puts `Lustre mount FAILED` there. Three criteria, three different answers, which is
   the finding the demo exists to show.
-- *lead*: grouped by team, 91% of alert volume belongs to `compute-platform`; but by episodes, the recurring dull ache is `ciod` and `Lustre mount FAILED`, thousands of small incidents across eight nodes.
+- *lead*: grouped by team, `compute-platform` owns **91.1% of all lines** and **81.6% of alert
+  lines** — two different cuts, and the manager's view says 82% while the engineer's says 91%, which
+  is a demo point rather than a contradiction. By episodes the recurring dull ache is `ciod` and
+  `Lustre mount FAILED`: ~3,600 incidents each (against 6 for the six-hour burst), spread over
+  **1,024 nodes across 128 midplanes** — eight nodes *per midplane*, which is the number to quote
+  with its qualifier, because the fleet-wide figure is 128x bigger.
 - *manager*: 348,460 alert lines → 19,250 incidents → ranked by blast radius and persistence, with `Not established` for cost. The recommendation is a statement about *what to fix first and why*, not a count.
 
 **W2 — "Were the instances that were supposed to be slow actually slow?" (OpenStack)**
