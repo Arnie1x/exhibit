@@ -123,6 +123,31 @@ def query(
                 timer.cancel()
 
 
+def execute(sql: str, params: Sequence[Any] | None = None, role: str | None = None,
+            timeout: float | None = None) -> None:
+    """Run a statement that returns no rows (INSERT, DDL).
+
+    Separate from ``query`` on purpose: ``query`` calls ``fetchall``, and on this engine that fails
+    for a statement with no result set -- an INSERT raised "the last operation didn't produce a
+    result", which a broad except in the ledger swallowed into a note. Writes go through here so a
+    failed write is visible.
+    """
+    budget = TIMEOUT_S if timeout is None else timeout
+    with connect(role=role) as conn:
+        timer = None
+        if budget and budget > 0:
+            timer = threading.Timer(budget, conn.cancel)
+            timer.daemon = True
+            timer.start()
+        try:
+            conn.execute(sql, params)
+        except psycopg.errors.QueryCanceled as exc:
+            raise QueryTimeout(f"statement exceeded {budget:g}s and was cancelled") from exc
+        finally:
+            if timer is not None:
+                timer.cancel()
+
+
 def scalar(sql: str, params: Sequence[Any] | None = None, role: str | None = None):
     rows = query(sql, params, role=role)
     return next(iter(rows[0].values())) if rows else None

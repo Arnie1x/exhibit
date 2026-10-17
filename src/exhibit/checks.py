@@ -1,7 +1,11 @@
-"""Stage 2 acceptance: every tool must answer, with the numbers `make smoke` prints.
+"""Acceptance: every tool must answer, with the numbers `make smoke` prints.
 
-Exit code 0 means the tool layer and the database agree. Any mismatch is a real bug -- either the
-tool is wrong or the corpus moved, and both need to be known before a demo.
+Exit code 0 means the tool layer, the analysis layer and the database agree. Any mismatch is a real
+bug -- either the tool is wrong or the corpus moved, and both need to be known before a demo.
+
+Stage 3's checks are written the same way: not "does `episodes` return a number" but "does it return
+19,250 at a five-minute gap, 14,479 at an hour, and does its five-minute count equal the value of
+the prebuilt view it recomputes". A check that cannot fail on a wrong number is decoration.
 """
 from __future__ import annotations
 
@@ -10,7 +14,7 @@ from typing import Any
 
 import psycopg
 
-from . import db, tools
+from . import analytics, db, tools
 from .datasets import catalogue
 
 PASS, FAIL = "PASS", "FAIL"
@@ -26,7 +30,7 @@ def check(label: str, actual: Any, expected: Any) -> None:
 
 
 def main() -> int:
-    print(f"exhibit stage-2 acceptance | datasets: {catalogue()}")
+    print(f"exhibit acceptance | datasets: {catalogue()}")
     print(f"  engine: {db.ping()}")
 
     print("\nregression vs make smoke")
@@ -158,12 +162,110 @@ def main() -> int:
     except db.QueryTimeout:
         check("a query over its deadline is cancelled", "QueryTimeout", "QueryTimeout")
 
+    print("\nStage 3: incidents, not lines")
+    ep1 = analytics.episodes("bgl", "engineer", gap_minutes=1, limit=1)
+    ep5 = analytics.episodes("bgl", "engineer", gap_minutes=5, limit=1)
+    ep60 = analytics.episodes("bgl", "engineer", gap_minutes=60, limit=1)
+    check("episodes at a 1-minute gap", ep1["total_matches"], 22_002)
+    check("episodes at a 5-minute gap", ep5["total_matches"], 19_250)
+    check("episodes at a 60-minute gap", ep60["total_matches"], 14_479)
+    check(
+        "the tool recomputes what the prebuilt 5-minute view says",
+        ep5["total_matches"],
+        db.scalar("SELECT count(*) FROM (SELECT DISTINCT signature, midplane, episode_no"
+                  " FROM bgl_episode) e"),
+    )
+    deepest = ep5["rows"][0]
+    check("the deepest incident is ONE node, 152,182 KERNDTLB lines",
+          (deepest["signature"], deepest["lines"], deepest["nodes"]),
+          ("data TLB error interrupt", 152_182, 1))
+    # Both burst numbers are right and they are different cuts: 152,183 is every alert line on that
+    # node that day (152,182 KERNDTLB + 1 KERNMC); 152,182 is the one incident. Guard both, so a
+    # future reader cannot "fix" one to match the other.
+    check("the day's total for that node is 152,183 (two categories)",
+          db.scalar("SELECT count(*) FROM bgl_ev WHERE is_alert AND node = 'R30-M0-N9-C:J16-U01'"
+                    " AND ts >= TIMESTAMP '2005-06-11' AND ts < TIMESTAMP '2005-06-12'"), 152_183)
+    check("the incident itself is 152,182",
+          db.scalar("SELECT count(*) FROM bgl_ev WHERE is_alert AND alert_category = 'KERNDTLB'"
+                    " AND node = 'R30-M0-N9-C:J16-U01' AND ts >= TIMESTAMP '2005-06-11'"
+                    " AND ts < TIMESTAMP '2005-06-12'"), 152_182)
+    check("episodes ignoring the failure domain (signature only)",
+          analytics.episodes("bgl", "engineer", coalesce_by="signature", limit=1)["total_matches"],
+          1_377)
+
+    lead_ep = analytics.episodes("bgl", "lead", limit=1)
+    check("the lead sees the same collapse: 19,250", lead_ep["total_matches"], 19_250)
+    check("the manager sees the same collapse: 19,250",
+          analytics.episodes("bgl", "manager", limit=1)["total_matches"], 19_250)
+    gap_refused = analytics.episodes("bgl", "lead", gap_minutes=60, limit=1)
+    check("the lead cannot vary the gap", gap_refused["refused"], True)
+    check("...and the refusal says why", "not a parameter" in gap_refused["notes"][0], True)
+
+    print("\ntop_signatures: the three rankings disagree, which is the finding")
+    by_lines = analytics.top_signatures("bgl", "engineer", by="lines", limit=3)
+    by_nodes = analytics.top_signatures("bgl", "engineer", by="nodes", limit=3)
+    by_eps = analytics.top_signatures("bgl", "engineer", by="episodes", limit=3)
+    check("ranked by lines: the log flood",
+          by_lines["rows"][0]["signature"], "data TLB error interrupt")
+    check("ranked by blast radius: a different problem",
+          by_nodes["rows"][0]["signature"], "Microloader Assertion")
+    check("ranked by episodes: a third one",
+          by_eps["rows"][0]["signature"], "Lustre mount FAILED : bglio{n} : point /p/gb{n}")
+    check("three criteria, three different answers",
+          len({by_lines["rows"][0]["signature"], by_nodes["rows"][0]["signature"],
+               by_eps["rows"][0]["signature"]}), 3)
+    check("the lead's worst OpenStack problem is the imagecache warning",
+          analytics.top_signatures("openstack", "lead", by="lines", limit=1)["rows"][0]["problem"],
+          "image cache: unknown base file")
+
+    print("\ndurations, ownership and the record of what we asked")
+    dur = analytics.durations(persona="engineer", limit=4)
+    check("the worst spawn is a labelled anomaly",
+          dur["rows"][0]["instance_id"], "a445709b-6ad0-40ec-8860-bec60b6ca0c2")
+    check("one row per instance in the corpus", dur["total_matches"], 2_069)
+    check("bgl has no lifecycle to time", analytics.durations(dataset="bgl")["refused"], True)
+    check("the manager ranks percentiles, not instances",
+          analytics.durations(persona="manager", by="spawn_max_s", limit=2)["refused"], False)
+
+    own = analytics.ownership(persona="engineer")
+    check("the ownership table we built", own["total_matches"], 23)
+    check("...and nothing in the corpus is unmapped",
+          any("unowned" in n for n in own["notes"]), True)
+    check("the manager has no grant on it", analytics.ownership(persona="manager")["refused"], True)
+
+    ne = analytics.nearby_events("bgl", "engineer", id=4_740_000, minutes=10, limit=2)
+    check("nearby_events walks a window of lines", ne["total_matches"] > 0, True)
+    check("nearby_events is engineer-only",
+          analytics.nearby_events("bgl", "lead", ts="2006-01-04 04:00:00")["refused"], True)
+
+    wc = analytics.what_changed("bgl", "engineer", window_hours=6, baseline_hours=24, limit=3)
+    check("what_changed is anchored to the data's last line, not today",
+          str(wc["scope"].get("anchor"))[:10], "2006-01-04")
+    check("what_changed reports rate_ratio and is_new",
+          {"is_new", "rate_ratio"} <= set(wc["columns"]), True)
+    tr = analytics.trend("bgl", "engineer", bucket="day", limit=5)
+    check("trend ends at the corpus's last day", str(tr["rows"][-1]["bucket"])[:10], "2006-01-04")
+    check("a daily view cannot produce an hourly trend",
+          analytics.trend("bgl", "lead", bucket="hour")["refused"], True)
+
+    check("every Stage 3 answer is written to the evidence ledger",
+          analytics.ledger.latest(ep5["evidence_id"]) is not None, True)
+    check("verify_evidence reproduces a stored answer",
+          analytics.verify_evidence(ep5["evidence_id"])["match"], True)
+    try:
+        analytics.verify_evidence("E-NOPE00")
+        check("an unknown evidence id errors instead of guessing", "no error", "KeyError")
+    except KeyError:
+        check("an unknown evidence id errors instead of guessing", "KeyError", "KeyError")
+    check("a refusal is recorded as evidence too",
+          analytics.ledger.latest(gap_refused["evidence_id"]) is not None, True)
+
     failures = [r for r in _results if r[0] == FAIL]
     print(f"\n{len(_results) - len(failures)}/{len(_results)} checks passed")
     if failures:
         print("FAILED:", ", ".join(f[1] for f in failures))
         return 1
-    print("Stage 2 acceptance: PASS")
+    print("Stage 2+3 acceptance: PASS")
     return 0
 
 

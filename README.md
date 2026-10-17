@@ -66,10 +66,11 @@ needs no mount.
 | `sql/30_views.sql` | Signatures, episodes, incidents, durations | done |
 | `sql/99_smoke.sql` | The headline numbers, for verification | done |
 | `sql/50_roles.sql` | Role views + GRANTs: engineer, lead, manager; scope enforced in the database | done, runs in 1.4 s; part of `make bootstrap` |
+| `sql/55_evidence.sql` | The evidence ledger: every answer's SQL, parameters and result hash | done; `make evidence`, runs after `roles` |
 | `tests/golden/headline_numbers.sql` | Independent SQL for the headline numbers (verifier-written) | done |
 | `scripts/parse.py` | BGL + OpenStack → Parquet (zero lines lost) | done |
 | `scripts/md2pdf.py` | Markdown → PDF, for the plan and the write-ups | done |
-| `src/exhibit/` | **The MCP server**: persona-aware registry, result envelope, three tools | done, 46/46 checks |
+| `src/exhibit/` | **The MCP server**: persona-aware registry, result envelope, eleven tools, the evidence ledger | done, 80/80 checks |
 | `scripts/stage2_mcp_client.py` | Stock-client acceptance check — launches the server over stdio and uses it | done |
 | `pyproject.toml` | uv project; `mcp` 2.x (`MCPServer`) + psycopg 3 | done |
 | `data/ownership.csv` | **The team-ownership table** (see below) | done |
@@ -83,11 +84,11 @@ and the stage numbers refer to `PLAN.md` §11.
 
 ```bash
 make setup     # uv sync — creates .venv and installs mcp + psycopg
-make check     # acceptance: 46 checks against the smoke numbers, then a stock MCP client
+make check     # acceptance: 80 checks against measured numbers, then a stock MCP client
 make mcp       # run the server on stdio; point any MCP client at it
 ```
 
-The server exposes three tools, each returning an **envelope** — the rows plus the SQL, the bound
+The server exposes eleven tools, each returning an **envelope** — the rows plus the SQL, the bound
 parameters, the operator that produced the counts, the true match total, a truncation flag and a
 stable evidence id:
 
@@ -96,6 +97,14 @@ stable evidence id:
 | `describe_data` | what this role can ask, over what period, grouped how |
 | `search_logs` | find evidence — matching lines with highlighted terms, plus the real total |
 | `count_events` | how many, bucketed by whatever the role's view exposes |
+| `episodes` | **incidents, not lines** — lines coalesced by signature x failure domain at a stated gap |
+| `top_signatures` | ranked problems, with lines **and** episodes **and** blast radius side by side |
+| `trend` | a number over time, anchored to the data's own clock |
+| `durations` | OpenStack lifecycle phases, worst first — the only route to the labelled anomalies |
+| `ownership` | the team-ownership table, checked against the corpus rather than trusted |
+| `nearby_events` | what else was happening around one line (engineer only) |
+| `what_changed` | foreground against baseline, rate-normalised |
+| `verify_evidence` | re-runs any stored answer and compares it hash for hash |
 
 Every tool takes a **persona** — and that is not a label. Each persona runs under its own database
 role, so scope is enforced by the engine rather than by a prompt:
@@ -108,8 +117,9 @@ role, so scope is enforced by the engine rather than by a prompt:
 
 ```
 $ uv run python scripts/stage2_mcp_client.py
-connected: exhibit 0.2.0
-tools: describe_data, search_logs, count_events
+connected: exhibit 0.3.0
+tools: describe_data, search_logs, count_events, episodes, top_signatures, trend, durations,
+       ownership, nearby_events, what_changed, verify_evidence
 
 the same question, asked as the three personas
   engineer  [E-88FE03] count_events: 4,747,963 matching rows (showing 2) | engineer@exhibit_engineer
@@ -122,11 +132,34 @@ and the lead asking for log text
   [E-1E4213] search_logs: NOT PERMITTED for lead@exhibit_lead | dataset=bgl, query=ciod
   full-text search is not available to lead: a search on an index relation is privilege-checked
   against the base table, which this role has no grant on.
+
+incidents, not lines
+  [E-55EF08] episodes: 19,250 matching rows (showing 1) | engineer@exhibit_engineer, gap_minutes=5
+    deepest incident: data TLB error interrupt on R30-M0 — 152,182 lines, 1 node, 6:21:47.98
+
+and the same question at an hour's gap, as the lead (whose relation is pre-grouped)
+  [E-0C21D1] episodes: NOT PERMITTED for lead@exhibit_lead | dataset=bgl, gap_minutes=60
+  lead reads bgl_incident, where incidents are already grouped at a 5-minute gap, so the gap is
+  not a parameter for this role.
+
+re-running the first answer from the evidence ledger
+  E-55EF08: match=True (19,250 rows recorded, 19,250 now)
+  MATCH — re-running the stored statement returns the same rows
+
+ranked by blast radius instead of volume
+  Microloader Assertion on R51-M1: 520 nodes, 1,048 lines, 2 episodes
 ```
 
 Three totals for one question, each correct for what that role can see: the engineer counts raw
 **rows**, the lead **sums** `lines` over its daily rollup, and the manager sums `alert_lines` — alert
 lines only, because that is what its view holds. The envelope says which it did.
+
+Note what happens in the last three blocks. The gap in `episodes` is a real parameter for the
+engineer and **not** for the lead, who reads a relation where the five-minute grouping is already
+done — so instead of quietly returning a different number, the tool refuses and says why. The
+answer that *was* given can then be re-run from the ledger and compared: not "trust us", but "run
+it yourself". And ranking the same corpus by blast radius instead of volume surfaces a different
+problem entirely, which is the finding the whole project is built around.
 
 > [!important] Three rules the server enforces
 > Search runs against the **index relation** (`bgl_idx`), never the base table — `@@` against a

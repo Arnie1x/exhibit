@@ -17,7 +17,7 @@ import json
 
 from mcp.server.mcpserver import MCPServer
 
-from . import tools
+from . import analytics, tools
 
 INSTRUCTIONS = """Log intelligence over the BGL and OpenStack corpora, computed in SereneDB.
 
@@ -41,14 +41,34 @@ Rules the server enforces, so do not fight them:
 * the operator that produced a count is stated in every envelope (term / phrase / any / all);
 * `count_events` reports whether it counted rows or summed a measure -- they are different things;
 * lines are not incidents: one node produced 152,183 lines in 6h22m while a fleet-wide event
-  produced 49,154 across 22,529 nodes. The `episodes` tool answers that and arrives in Stage 3.
+  produced 49,154 lines across 22,529 nodes.
+
+Stage 3 turns that into the analysis surface:
+
+* `episodes` -- collapse lines into incidents at a stated gap. The gap is a parameter for the
+  engineer (22,002 incidents at one minute, 14,479 at an hour) and a fixed 5 minutes for the lead
+  and manager, whose relations are pre-grouped; the envelope says which, and the refusal names the
+  reason rather than silently returning a different number;
+* `top_signatures` -- rank by episodes, lines or blast radius, and see all three side by side. This
+  is where "ranked by lines" and "ranked by blast radius" disagree in public;
+* `trend`, `what_changed` -- movement over time, anchored to the last timestamp in the data (2005
+  and 2017), never to today. `what_changed` compares per hour on both sides, so a shorter window
+  does not read as a decline;
+* `durations` -- OpenStack server lifecycle phases, worst first. The only place the four labelled
+  anomalies are visible at all;
+* `ownership` -- the team-ownership table we built, checked against the corpus rather than trusted;
+* `nearby_events` -- what else was happening around one line. Engineer only;
+* `verify_evidence` -- re-runs any stored answer and compares it hash for hash. No number here is
+  taken on trust, including the ones this server produced.
+
+Never add up a blast radius: `nodes` is distinct machines per incident, so it is a peak, not a sum.
 """
 
 mcp = MCPServer(
     name="exhibit",
     title="Logging off Early — log intelligence on SereneDB",
     instructions=INSTRUCTIONS,
-    version="0.2.0",
+    version="0.3.0",
 )
 
 
@@ -102,6 +122,146 @@ def count_events(
         tools.count_events(dataset, group_by, persona, query, mode, limit, since, until, level, team),
         default=str,
     )
+
+
+@mcp.tool(description=(
+    "Collapse log lines into incidents: one signature in one failure domain that did not fall quiet "
+    "for longer than gap_minutes. The gap is stated back with the answer -- the same corpus reads as "
+    "22,002 incidents at 1 minute and 14,479 at 60. gap_minutes is a parameter only for the engineer, "
+    "who holds a grant on the parsed relation; for the lead and manager incidents are pre-grouped at "
+    "5 minutes and asking for another gap returns a refusal that says why. "
+    "coalesce_by: failure_domain (default) | signature."))
+def episodes(
+    dataset: str,
+    persona: str | None = None,
+    gap_minutes: int = 5,
+    coalesce_by: str | None = None,
+    limit: int = 20,
+    since: str | None = None,
+    until: str | None = None,
+    level: str | None = None,
+    team: str | None = None,
+) -> str:
+    return json.dumps(
+        analytics.episodes(dataset, persona, gap_minutes, coalesce_by, limit, since, until, level,
+                           team),
+        default=str,
+    )
+
+
+@mcp.tool(description=(
+    "Rank problems with lines, incidents and blast radius side by side, ordered by `by` "
+    "(episodes | lines | nodes). The point of the tool is that the three criteria disagree: this "
+    "corpus ranked by lines is a fleet-wide log flood, ranked by blast radius it is a six-hour "
+    "one-machine meltdown. Blast radius is always a peak, never a sum."))
+def top_signatures(
+    dataset: str,
+    persona: str | None = None,
+    by: str = "episodes",
+    gap_minutes: int = 5,
+    limit: int = 20,
+    since: str | None = None,
+    until: str | None = None,
+    level: str | None = None,
+    team: str | None = None,
+) -> str:
+    return json.dumps(
+        analytics.top_signatures(dataset, persona, by, gap_minutes, limit, since, until, level,
+                                 team),
+        default=str,
+    )
+
+
+@mcp.tool(description=(
+    "A number over time, bucketed by hour | day | week. `days` counts back from the last timestamp "
+    "in the data (2005 for BGL, 2017 for OpenStack), never from today. A role whose relation is "
+    "bucketed daily cannot produce an hourly trend, and says so instead of substituting one."))
+def trend(
+    dataset: str,
+    persona: str | None = None,
+    bucket: str = "day",
+    days: int | None = None,
+    limit: int = 400,
+    since: str | None = None,
+    until: str | None = None,
+    level: str | None = None,
+    team: str | None = None,
+) -> str:
+    return json.dumps(
+        analytics.trend(dataset, persona, bucket, days, limit, since, until, level, team),
+        default=str,
+    )
+
+
+@mcp.tool(description=(
+    "OpenStack server lifecycle phases (spawn/build/image/boot/lifetime), worst first. The engineer "
+    "and the lead get instances and can name the slow ones; the manager gets the percentile "
+    "distribution, because that role's view deliberately carries no instance ids. The only place "
+    "the four labelled anomalies in anomaly_labels.txt are visible at all."))
+def durations(
+    dataset: str = "openstack",
+    persona: str | None = None,
+    by: str = "spawn_s",
+    limit: int = 20,
+    team: str | None = None,
+) -> str:
+    return json.dumps(analytics.durations(dataset, persona, by, limit, team), default=str)
+
+
+@mcp.tool(description=(
+    "The team-ownership table (who owns which component, service or signature), and whether "
+    "anything in the corpus is unowned -- checked against the data, not asserted. The manager has "
+    "no grant on owner_map and receives a refusal: that role's views carry `team` on every row, so "
+    "ownership arrives with the number."))
+def ownership(
+    persona: str | None = None,
+    dataset: str | None = None,
+    team: str | None = None,
+    limit: int = 100,
+) -> str:
+    return json.dumps(analytics.ownership(persona, dataset, team, limit), default=str)
+
+
+@mcp.tool(description=(
+    "What else was happening within `minutes` either side of one log line -- anchor on id or on a "
+    "timestamp. Engineer only: it walks the index relation line by line and the other roles have no "
+    "grant on it. Returns the window's lines, the busiest signatures in it, and the id range."))
+def nearby_events(
+    dataset: str,
+    persona: str | None = None,
+    ts: str | None = None,
+    id: int | None = None,
+    minutes: int = 15,
+    limit: int = 20,
+) -> str:
+    return json.dumps(analytics.nearby_events(dataset, persona, ts, id, minutes, limit), default=str)
+
+
+@mcp.tool(description=(
+    "What changed: the last window_hours against a baseline, per hour on both sides so a shorter "
+    "window does not read as a decline, anchored to the last timestamp in the data. rate_ratio > 1 "
+    "= arriving faster than baseline; is_new = absent from the baseline. Hours are read as whole "
+    "days for roles whose views are daily."))
+def what_changed(
+    dataset: str,
+    persona: str | None = None,
+    window_hours: int = 6,
+    baseline_hours: int = 24,
+    min_lines: int = 1,
+    limit: int = 20,
+) -> str:
+    return json.dumps(
+        analytics.what_changed(dataset, persona, window_hours, baseline_hours, min_lines, limit),
+        default=str,
+    )
+
+
+@mcp.tool(description=(
+    "Re-run a stored answer and compare it, hash for hash. Every envelope prints an evidence id; "
+    "pass it here to have the exact statement re-executed under the exact role with the exact "
+    "parameters. A MISMATCH means the corpus or the definition moved since the answer was given."))
+def verify_evidence(evidence_id: str, sample: int = 3) -> str:
+    return json.dumps(analytics.verify_evidence(evidence_id, sample), default=str)
 
 
 def main() -> None:

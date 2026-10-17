@@ -4,7 +4,7 @@ DATA  ?= /data/loghub          # path INSIDE the SereneDB container
 MAP   ?= /data/ownership.csv   # ownership table, visible to the container
 CACHE ?= $(PWD)/data           # mounted to /data in the container
 
-.PHONY: help setup doctor up down fetch parse probe derive index bootstrap smoke demo bench eval roles mcp check clean-check
+.PHONY: help setup doctor up down fetch parse probe derive index bootstrap smoke demo bench eval roles evidence mcp check clean-check
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-13s\033[0m %s\n", $$1, $$2}'
@@ -44,7 +44,10 @@ views: ## signatures, incidents, episodes, durations, role views
 roles: ## role views + GRANTs (scope enforced in the database)
 	$(PSQL) -f sql/50_roles.sql
 
-bootstrap: derive index views roles ## full rebuild from raw Parquet (idempotent, ~20 s); roles last, views' CASCADE drops them
+evidence: ## the evidence ledger table + its grants (sql/55_evidence.sql; after roles, which resets grants)
+	$(PSQL) -f sql/55_evidence.sql
+
+bootstrap: derive index views roles evidence ## full rebuild from raw Parquet (idempotent, ~25 s); roles then evidence, views' CASCADE drops them
 
 setup: ## create the venv and install dependencies (uv)
 	uv sync
