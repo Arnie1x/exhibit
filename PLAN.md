@@ -381,20 +381,24 @@ for judges → the evaluation harness → the huge-datasets bench → workspace 
 It is **10:30 Saturday**. The deadline is **23:59 Sunday**. Organiser advice: pick one approach
 by Saturday morning (done), and **sleep Saturday night**.
 
-| When | What | Gate — do not pass without this |
-|---|---|---|
-| **Sat 10:30–12:00** | Stage 0–1: probe + data layer. **Already done** — `make bootstrap smoke` prints the headline numbers on this box | `make bootstrap` < 60 s; `make smoke` prints 4,747,963 / 207,812 and 348,460 → 19,250 |
-| **Sat 12:00–14:00** | Stage 2: MCP server skeleton + `describe_data`, `search_logs`, `count_events` against the live DB | A stock client lists three tools and answers one question with an envelope |
-| **Sat 14:00–17:00** | Stage 3: `top_signatures`, `trend`, `episodes`, `durations`, `ownership` — W1 and W2 runnable as queries | `make demo` prints both investigations, numbers matching §9 |
-| **Sat 17:00–18:00** | **Freeze for the Q&A.** Write the three questions you will ask (below) and rehearse the 10 minutes | You can explain W1 in 90 seconds without notes |
-| **Sat 18:00–20:00** | **Per-team Q&A with the challenge owners** (10 min slot) | Answers written down and folded back into this plan; if a rubric reading changes, note it tonight |
-| **Sat 20:00–24:00** | Stage 4: the three roles + answer contract + numeric lint + manager lint | Same question, three answers, three evidence paths — visibly different, not longer |
-| **Sun 00:00–08:00** | **Sleep. Non-negotiable.** The plan assumes it | — |
-| **Sun 08:00–12:00** | Stage 5: validation (hidden ground truth), the evaluation harness, fix what it finds | Eval score printed; every number in the README reproducible |
-| **Sun 12:00–15:00** | Stage 6: README, `make clean-check`, slides, the disclosure section | A clean clone runs `make bootstrap smoke` on a machine that has never seen the project |
-| **Sun 15:00–19:00** | Stage 7: **record the video** (5 min, per the ceremony notes — see §13 Q3), rehearse twice | Video plays end to end without a stall and shows a real query returning a real number |
-| **Sun 19:00–22:00** | Stage 8: submission checklist, flip the repo public, upload | §15 complete |
-| **Sun 22:00–23:59** | Buffer. Something will go wrong; this is the hour it goes wrong in | — |
+Status is a column, not a claim in chat: this table is the one `/stage N` numbers, and
+`docs/build-plan.md` §0 maps those numbers to its own hour-based stages (its "Stage 4 — Insight
+tools" is team-stage 3; its "Stage 6 — Bonus tracks" is not team-stage 6).
+
+| When | What | Gate — do not pass without this | Status |
+|---|---|---|---|
+| **Sat 10:30–12:00** | Stage 0–1: probe + data layer. **Already done** — `make bootstrap smoke` prints the headline numbers on this box | `make bootstrap` < 60 s; `make smoke` prints 4,747,963 / 207,812 and 348,460 → 19,250 | ✓ done (Adnan) |
+| **Sat 12:00–14:00** | Stage 2: MCP server skeleton + `describe_data`, `search_logs`, `count_events` against the live DB | A stock client lists three tools and answers one question with an envelope | ✓ done — merged; the stock client passes |
+| **Sat 14:00–17:00** | Stage 3: `top_signatures`, `trend`, `episodes`, `durations`, `ownership` — W1 and W2 runnable as queries | `make demo` prints both investigations, numbers matching §9 | ✓ done — merged 17 Oct 12:21 UTC (PR #2); `make demo` prints W1 and W2 per role |
+| **Sat 17:00–18:00** | **Freeze for the Q&A.** Write the three questions you will ask (below) and rehearse the 10 minutes | You can explain W1 in 90 seconds without notes | — tonight |
+| **Sat 18:00–20:00** | **Per-team Q&A with the challenge owners** (10 min slot) | Answers written down and folded back into this plan; if a rubric reading changes, note it tonight | — tonight |
+| **Sat 20:00–24:00** | Stage 4: the three roles + answer contract + numeric lint + manager lint | Same question, three answers, three evidence paths — visibly different, not longer | ✓ done **early** (17 Oct) — §9b roles/grants and the contract came with stages 2–3; `lint_answer` closed the lints. Gate shown by `make demo`'s per-role sections |
+| **Sun 00:00–08:00** | **Sleep. Non-negotiable.** The plan assumes it | — | — |
+| **Sun 08:00–12:00** | Stage 5: validation (hidden ground truth), the evaluation harness, fix what it finds | Eval score printed; every number in the README reproducible | ✓ done **early** (17 Oct) — ground truth was already in (`scripts/validate_ground_truth.py`); `make eval` → 15/15, and it found three seam defects which are fixed |
+| **Sun 12:00–15:00** | Stage 6: README, `make clean-check`, slides, the disclosure section | A clean clone runs `make bootstrap smoke` on a machine that has never seen the project | **next** — README ✓, `make clean-check` ✓ (fresh clones pass), `docs/disclosure.md` ✓; **slides left**, and the fresh-machine run is Adnan's box |
+| **Sun 15:00–19:00** | Stage 7: **record the video** (5 min, per the ceremony notes — see §13 Q3), rehearse twice | Video plays end to end without a stall and shows a real query returning a real number | — |
+| **Sun 19:00–22:00** | Stage 8: submission checklist, flip the repo public, upload | §15 complete | — |
+| **Sun 22:00–23:59** | Buffer. Something will go wrong; this is the hour it goes wrong in | — | — |
 
 **Cut lines, in order, if you fall behind:** workspace-index bench → `trace_context` and
 `explain_query` → the eval harness (keep a manual 12-question list instead) → the huge-datasets
