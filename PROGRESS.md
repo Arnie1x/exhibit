@@ -198,7 +198,7 @@ Branch **`stage-3-tools`**, PR open, **not merged** — I am holding it until yo
 final consensus together. Nothing of yours is touched: `sql/50_roles.sql`, `tests/golden/`, the
 W2 views and `CLAUDE.md` are exactly as you left them.
 
-- **All ten tools exist now**, plus `verify_evidence` = eleven. `make check` runs **80 checks**
+- **All ten tools exist now**, plus `verify_evidence` = eleven. `make check` runs **85 checks**
   (was 46) and `scripts/stage2_mcp_client.py` exercises Stage 3 through a stock MCP client too. The
   new checks assert numbers, not shapes: `episodes` must return 19,250 at a 5-minute gap and equal
   the prebuilt view it recomputes; `top_signatures` ranked by lines / nodes / episodes must return

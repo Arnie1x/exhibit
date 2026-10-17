@@ -218,6 +218,21 @@ def main() -> int:
           analytics.top_signatures("openstack", "lead", by="lines", limit=1)["rows"][0]["problem"],
           "image cache: unknown base file")
 
+    print("\nblast radius: a column that reads 0 for a measurable reason")
+    os_ep = analytics.episodes("openstack", "engineer", limit=1)
+    check("openstack problem lines carry no instance id, and the answer says so",
+          any("unmeasurable in instances" in n for n in os_ep["notes"]), True)
+    check("...and bgl, where every line has a node, is not given that note",
+          any("unmeasurable in instances" in n for n in ep5["notes"]), False)
+    os_nodes = analytics.top_signatures("openstack", "engineer", by="nodes", limit=1)
+    check("ranking openstack by blast radius is refused, not ranked 0 against 0",
+          os_nodes["refused"], True)
+    check("...and the refusal says what the corpus does instead",
+          "0 against 0" in os_nodes["notes"][0], True)
+    check("the manager's openstack blast radius is named for what it counts",
+          "requests_affected" in analytics.top_signatures(
+              "openstack", "manager", by="episodes", limit=1)["columns"], True)
+
     print("\ndurations, ownership and the record of what we asked")
     dur = analytics.durations(persona="engineer", limit=4)
     check("the worst spawn is a labelled anomaly",

@@ -219,6 +219,33 @@ lines** in one incident on one node, while **152,183** is every alert line on th
 (152,182 + 1 `KERNMC`) — two different cuts of the same six hours, and both are guarded by checks so
 neither can be "corrected" into the other.
 
+### 8.1 A blast-radius column that reads 0 for a reason
+
+Instance coverage is the one place where the OpenStack corpus quietly changes what a number *means*,
+so it is measured rather than assumed:
+
+| relation | lines | carry an instance id |
+|---|---|---|
+| `os_sig`, all lines | 207,812 | 51,553 (24.8%) |
+| `os_sig`, `level <> 'INFO'` (the ranking's scope) | 3,306 | **0** |
+| `os_incident` (the lead's relation), 68 incidents | 68 rows | **max(instances) = 0** |
+| `mgr_os_risk.requests_affected` (the manager's) | 5 problems | **max 45, sum 68** |
+| `bgl_incident.nodes` (for contrast) | 19,250 incidents | max 520 |
+
+The instance id sits on normal-traffic lines and on none of the error lines, so:
+
+1. `episodes` still returns the 0 — it is measured and true — but the answer carries a note saying
+   the blast radius is **unmeasurable in instances rather than genuinely zero**, and to read the
+   service and the file paths instead. Without it, "0 nodes" in a demo reads as a join that failed.
+2. `top_signatures(by='nodes')` on OpenStack is **refused** with that reasoning, because ranking on
+   a column that is 0 for every row ranks nothing. The alternative is named in the refusal.
+3. The manager's column is renamed to `requests_affected` — its expression is
+   `max(requests_affected)`, and a request count is not a machine count. A column named `nodes`
+   that holds 45 requests is exactly the kind of false label this project exists to avoid.
+
+All three are guarded by acceptance checks, including one asserting the note does **not** appear for
+BGL, where every alert line names a node.
+
 ## 9. Reproduction
 
 ```bash
