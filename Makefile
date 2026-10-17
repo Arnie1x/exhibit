@@ -7,12 +7,13 @@ PSQL  ?= psql -h 127.0.0.1 -p 7890 -U postgres -P pager=off
 DATA  ?= /data/loghub
 MAP   ?= /data/ownership.csv
 CACHE ?= $(PWD)/data
+BENCH_SECONDS ?= 1
 
 # Python prints check marks and arrows; a Windows console defaults to cp1252 and raises
 # UnicodeEncodeError on the first one. UTF-8 mode is a no-op on Linux and macOS.
 export PYTHONUTF8 := 1
 
-.PHONY: help setup doctor up down fetch parse probe derive index bootstrap smoke demo bench eval validate roles evidence mcp check clean-check
+.PHONY: help setup doctor up down fetch parse probe derive index bootstrap smoke demo bench bench-ladder eval validate roles evidence mcp check clean-check
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-13s\033[0m %s\n", $$1, $$2}'
@@ -74,8 +75,11 @@ smoke: ## the three headline numbers, printed for comparison
 demo: ## the two worked investigations, exactly as the video runs them
 	$(PSQL) < sql/90_queries.sql
 
-bench: ## optional: index a remote Parquet slice, measure rows/s (huge-datasets award)
-	$(PSQL) < sql/70_bench.sql
+bench: ## huge data: index a slice of the remote 1B-row OTel file + a view over local Parquet
+	$(PSQL) -v seconds=$(BENCH_SECONDS) < sql/70_bench.sql
+
+bench-ladder: ## the bench at 1 and 10 s slices, each index sized on disk (bench/README.md)
+	PSQL='$(PSQL)' bash bench/run_ladder.sh
 
 eval: ## score the question bank against the hand-written golden SQL
 	uv run python evals/run_eval.py

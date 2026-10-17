@@ -202,7 +202,7 @@ index.
 |---|---|
 | Workspace indexes (9a) | **Viable on pattern B since the 17 Oct re-probe.** A partial index restricts when it is named (34,056 = the windowed count) and builds in about a fifth of the time (239 vs 1,191 ms for 8.9% of the rows); queries gain about 0.4 ms. Still no size metric (`sdb_metrics`), so report build time and row counts, never bytes. The bonus order in the team plan §14 is unchanged |
 | Role-scoped access (9b) | **Sound and now verified end to end** — including the search path (§6). `CREATE ROLE … LOGIN PASSWORD`, `GRANT`, column grants, `SET ROLE` all work |
-| Huge datasets (9c) | **Sound.** The engine reads remote Parquet over HTTPS directly (1B rows, 0.8 s for a slice, no download); index the **view** and refresh with `REINDEX INDEX`. Report bytes read and build time |
+| Huge datasets (9c) | **Built, with one setting that decides everything** (§11, 17 Oct): with `enable_external_file_cache = false` a time slice of the 1B-row remote file is pruned to its row groups and an index on a view over it builds and searches; with the default (cache on) reads are not pruned and big ones kill the server. `make bench`, `make bench-ladder`, `bench/README.md` |
 | Eval harness (9d) | **Sound and cheap.** Golden SQL + tool-selection scoring needs nothing exotic |
 
 ## 8. Stage 3 — windowing, change detection, and two traps
@@ -392,3 +392,23 @@ PSQL='docker exec -i serenedb psql -h 127.0.0.1 -p 7890 -U postgres' bash script
 
 Loads: **BGL 4,747,963 rows** (zero lines lost), **OpenStack 207,812 of 207,820** (8 unusable),
 100% ownership coverage. Full rebuild ≈ **20 seconds**.
+
+## 11. Remote Parquet: the 1B-row OTel file (huge-datasets bench, 17 Oct, Adnan)
+
+Measured on the Windows box (Docker Desktop, 16 vCPU, 7.6 GB VM) against
+`https://public-pme.s3.eu-west-3.amazonaws.com/text_bench/part_000.parquet`: 1,000,000,000 rows,
+1,624 row groups (~615k rows each, about 1.1 s of log time), 40,991,166,725 bytes, sorted by time
+over 2025-09-23 00:00:00 → 00:29:24. `sql/70_bench.sql` (`make bench`) is the reproduction;
+`bench/README.md` holds the results.
+
+| Finding | Evidence |
+| --- | --- |
+| **The footer answers metadata for free.** `parquet_file_metadata` / `parquet_metadata` give rows, row groups, sizes and per-row-group min/max; `count(*)` over the whole file comes from the footer | bench A: 2.2 s cold (the 4.8 MB footer), then 0.1 s for `count(*)` = 1,000,000,000 |
+| **Filter on `"TimestampTime"`, not `"Timestamp"`.** `Timestamp` is `TIMESTAMPTZ_NS`: comparing it to a `TIMESTAMPTZ` literal fails (`Cannot compare values of type TIMESTAMPTZ_NS and type TIMESTAMP WITH TIME ZONE - an explicit cast is required`), and its column is 1.95 GB. `TimestampTime` is `TIMESTAMPTZ` truncated to the second, 237 KB in total | a first scan filtered on `Timestamp` (cast literal) took **7 min 57 s** for one second of data |
+| **Row-group pruning works, but only with `enable_external_file_cache = false`.** With the cache off, a 1-second slice of `ServiceName` read **8.7 MiB** (of 297 MB) and of `Body` **99.8 MiB** (of 9.07 GB), each in 14–25 s | `EXPLAIN ANALYZE` HTTPFS stats: `in: 8.7 MiB`, `#GET: 1645`; the view prunes exactly like a direct `read_parquet` |
+| **With the cache on (the default), the same reads are not pruned.** A two-column count over the same second pulled 600+ MB in 5 minutes; a seven-column count pulled 4.67 GB in 10 minutes | container `NetIO` during the runs |
+| **The pruned read still costs 1,645 GETs**: the reader fetches every row group's `TimestampTime` chunk instead of using the footer statistics, so any slice, however small, starts at ~14 s cold | every cache-off `EXPLAIN ANALYZE` above |
+| **SIGSEGV, same PC (`0x27fb407`), nine times.** Big cache-on remote reads, `CREATE INDEX` on a remote slice with the cache on (with and without the severity columns in the index), any read that included `SeverityText` (cache on or off), a seven-column count with the cache off, and the 30 s and 60 s slice builds with the cache off. The server exits 139 and stays down until restarted; the data volume is unharmed | `docker logs serenedb`: `*** SIGSEGV received … PC: @ 0x27fb407` |
+| **With the cache off and the severity columns left out, the remote index builds, up to a ceiling.** `CREATE INDEX … ON <view over the slice> USING inverted (body <dict>, service, ts, trace_id)`: one second = 536,041 rows in 23–32 s, ten seconds = 5,275,597 rows in 60 s; phrase search 13–18 ms; a trace id returns one request across 5 services; `REINDEX INDEX` on the unchanged file 1–4 s. **Thirty and sixty seconds (27 and 52 row groups) crash the build** with the same SIGSEGV | `bench/README.md`; `logs/bench-{1,10,30,60}s.log` |
+| **Index size has no metric, but it has a directory.** Postings live in `<data dir>/engine_search/<db oid>/<schema oid>/<relation oid>`; for a view with one index, `du` of that directory is the index | the 1-second slice index: 14,400 KB (`bench/run_ladder.sh` finds it by the view's `pg_class.oid`) |
+| **An index on a view over *local* Parquet answers exactly what the table index answers**, and builds faster than a table index on the same columns (no table to refresh) | bench C: 152,734 phrase / 350,567 term on the view index, the table index and `bgl_idx` alike |
