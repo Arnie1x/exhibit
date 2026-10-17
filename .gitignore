@@ -26,3 +26,21 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
+# Secrets (keep .env.example)
+# Python
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+# Raw data, logs and local state
+data/
+logs/
+*.zip
+*.tar.gz
+*.parquet
+# Node (MCP Inspector, .mcpb tooling)
+# Editors and OS
+# Personal Claude Code settings (the shared ones in .claude/settings.json stay)
+.claude/settings.local.json
