@@ -69,7 +69,7 @@ needs no mount.
 | `tests/golden/headline_numbers.sql` | Independent SQL for the headline numbers (verifier-written) | done |
 | `scripts/parse.py` | BGL + OpenStack → Parquet (zero lines lost) | done |
 | `scripts/md2pdf.py` | Markdown → PDF, for the plan and the write-ups | done |
-| `src/exhibit/` | **The MCP server**: dataset registry, result envelope, the three Stage 2 tools | done, 24/24 checks |
+| `src/exhibit/` | **The MCP server**: persona-aware registry, result envelope, three tools | done, 46/46 checks |
 | `scripts/stage2_mcp_client.py` | Stock-client acceptance check — launches the server over stdio and uses it | done |
 | `pyproject.toml` | uv project; `mcp` 2.x (`MCPServer`) + psycopg 3 | done |
 | `data/ownership.csv` | **The team-ownership table** (see below) | done |
@@ -83,7 +83,7 @@ and the stage numbers refer to `PLAN.md` §11.
 
 ```bash
 make setup     # uv sync — creates .venv and installs mcp + psycopg
-make check     # acceptance: 24 checks against the smoke numbers, then a stock MCP client
+make check     # acceptance: 46 checks against the smoke numbers, then a stock MCP client
 make mcp       # run the server on stdio; point any MCP client at it
 ```
 
@@ -93,25 +93,47 @@ stable evidence id:
 
 | Tool | Answers |
 |---|---|
-| `describe_data` | what can be asked, over what period, grouped how, owned by whom |
+| `describe_data` | what this role can ask, over what period, grouped how |
 | `search_logs` | find evidence — matching lines with highlighted terms, plus the real total |
-| `count_events` | how many, bucketed by signature / component / level / team / node |
+| `count_events` | how many, bucketed by whatever the role's view exposes |
+
+Every tool takes a **persona** — and that is not a label. Each persona runs under its own database
+role, so scope is enforced by the engine rather than by a prompt:
+
+| Persona | Role | Reads | Can search | The question it asks |
+|---|---|---|---|---|
+| `engineer` | `exhibit_engineer` | `bgl_ev` / `os_ev` — raw lines | yes, `bgl_idx` / `os_idx` | what is broken, where, and what the log actually says |
+| `lead` | `exhibit_lead` | `lead_bgl_daily` / `lead_os_hourly` — per day/hour | **no** — no grant on the base table | which team's work is this, and is it getting better |
+| `manager` | `exhibit_manager` | `mgr_bgl_risk` / `mgr_os_risk` / `mgr_rollup_daily` | **no** | what to fix first, and why should I believe it |
 
 ```
 $ uv run python scripts/stage2_mcp_client.py
-connected: exhibit 0.1.0
+connected: exhibit 0.2.0
 tools: describe_data, search_logs, count_events
-calling search_logs(bgl, 'data TLB error interrupt', phrase)
-  [E-48A6C8] search_logs: 152,734 matching rows (showing 1) | dataset=bgl, query=data TLB error interrupt
-  operator: phrase (ts_phrase)
-  first highlight: <b>data TLB error interrupt</b>
+
+the same question, asked as the three personas
+  engineer  [E-88FE03] count_events: 4,747,963 matching rows (showing 2) | engineer@exhibit_engineer
+            top: [('compute-platform', 4325112), ('workload-runtime', 228536)]
+  lead      [E-3CDBEC] count_events: 4,747,963 sum of lines (showing 2) | lead@exhibit_lead
+  manager   [E-EEAF08] count_events: 348,460 sum of alert_lines (showing 2) | manager@exhibit_manager
+            top: [('compute-platform', 284391), ('workload-runtime', 63845)]
+
+and the lead asking for log text
+  [E-1E4213] search_logs: NOT PERMITTED for lead@exhibit_lead | dataset=bgl, query=ciod
+  full-text search is not available to lead: a search on an index relation is privilege-checked
+  against the base table, which this role has no grant on.
 ```
 
-> [!important] Two rules the server enforces
-> Search runs against the **index relation** (`bgl_idx`) and aggregation against the **table**
-> (`bgl_ev`) — `@@` against a plain table fails even with an index attached to it. And every count
-> reports the operator that produced it, because `@@`, a non-alpha splitter and `ILIKE` give three
-> different numbers on the same data.
+Three totals for one question, each correct for what that role can see: the engineer counts raw
+**rows**, the lead **sums** `lines` over its daily rollup, and the manager sums `alert_lines` — alert
+lines only, because that is what its view holds. The envelope says which it did.
+
+> [!important] Three rules the server enforces
+> Search runs against the **index relation** (`bgl_idx`), never the base table — `@@` against a
+> plain table fails even with an index attached to it. Every count states the operator that produced
+> it, because `@@`, a non-alpha splitter and `ILIKE` give three different numbers on the same data.
+> And a role that may not read something gets `refused: true` with the reason, because the database
+> said no — not because a system prompt asked nicely.
 
 ## The ownership table
 

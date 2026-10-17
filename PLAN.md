@@ -102,7 +102,7 @@ Both datasets from Zenodo record 8196385 (~770 MB), parsed by `scripts/parse.py`
 | Alert lines (`label <> '-'`) | **348,460** | — |
 | Distinct nodes (id string) | 69,252 | — |
 | Components | 10 | — |
-| Error level lines | ERROR 112,355 · FATAL 855,501 | ERROR 186 · CRITICAL 2 |
+| Error level lines | ERROR 112,355 · FATAL 855,501 | ERROR 186 · CRITICAL 2 (184 of the 188 are 8 tracebacks of one bug) |
 
 **BGL has four record shapes**, which is why a naive parser silently drops ~0.7% of the file.
 The anchor is the `<TYPE> <COMPONENT> <LEVEL>` triple, where TYPE is `RAS` **or** `NULL`
@@ -139,10 +139,17 @@ the volume leaders:
 | `rts: kernel terminated for reason {N}` | 18,587 | 2,641 |
 
 **4. OpenStack's entire error surface is one bug, repeated eight times.** `oslo_service.periodic_task`
-emits **184 ERROR lines**, all from `nova.virt.libvirt.imagecache` → `qemu_img_info` →
-`InvalidDiskInfo`. There are exactly **8** `Traceback (most recent call last):` headers. The
+logs **184 ERROR lines** whose stack frames run through `nova.virt.libvirt.imagecache` →
+`qemu_img_info` → `InvalidDiskInfo` (the *logger* is the periodic task, not imagecache). There are exactly **8** `Traceback (most recent call last):` headers. The
 same root cause produces **3,059 WARNING lines** (`Unknown base file: /var/lib/nova/instances/_base/...`).
-184 of the corpus's 188 ERROR+CRITICAL lines are **8 incidents of 1 bug** — and a line leaderboard cannot see them.
+184 of the corpus's 188 ERROR+CRITICAL lines are **8 incidents of 1 bug** — and a line leaderboard
+cannot see them.
+
+**And this one bug spans two teams**, which is the sort of thing a per-team report gets wrong: the
+ERROR lines are logged by `oslo_service.periodic_task` and so are owned by **`platform-services`**,
+while the warnings from the same root cause are logged by `nova.virt.libvirt.imagecache` and owned by
+**`image-service`**. Logger-first precedence is a rule, not the truth — our lead answer says so out
+loud rather than quietly picking a side.
 
 *And one signal that volume hides:* `keystonemiddleware.auth_token` emits **2 CRITICAL** lines —
 the only CRITICAL in the entire corpus — plus 2 ERROR and 2 WARNING. Six lines. A line-count
@@ -313,7 +320,7 @@ evidence:
 
 - *engineer*: latency percentiles are identical between the normal and abnormal files (mean 0.234 s both). Nothing to see.
 - *lead*: `durations` ranks instances by lifecycle duration — the four labelled anomalies occupy positions 1–4.
-- *manager*: eight incidents of one imagecache bug; six lines of CRITICAL auth failures that no volume ranking would surface.
+- *manager*: eight incidents of one imagecache bug; 2 CRITICAL token-validation failures (6 lines) that no volume ranking would surface — and that bug's bill lands on two different teams.
 
 **Hidden validation (the credibility device).** `anomaly_labels.txt` and BGL's `label` column are
 used by a **separate script** that the agent cannot call and cannot read. It reports recall
@@ -496,7 +503,7 @@ BGL 4,747,963 rows · OpenStack 207,812 rows · span 2005-06-03 → 2006-01-04
 alert lines 348,460 → 19,250 failure-domain episodes → 1,377 global episodes
 152,183 lines on 1 node (2005-06-11)  vs  49,154 lines on 22,529 nodes (2005-06-14)
 84,253 fault lines carrying the "normal" label
-OpenStack: 188 ERROR+CRITICAL lines = 8 tracebacks of one bug (184) + 4 token-validation lines
+OpenStack: 188 ERROR+CRITICAL lines = 184 lines in 8 tracebacks of one imagecache bug + 4 token-validation lines (2 failed validations, 6 lines with their 2 WARNINGs)
 4 of 4 labelled anomalies in the top 4 by lifecycle duration
 ownership coverage 100% · derive 14 s · index 5.6 s
 ```

@@ -64,6 +64,21 @@ async def main() -> int:
             print(" ", res["headline"])
             print(" ", "group options:", ", ".join(res["rows"][0]["group_by_options"]))
 
+            print("\nthe same question, asked as the three personas")
+            for who in ("engineer", "lead", "manager"):
+                res = payload(await session.call_tool("count_events", {
+                    "dataset": "bgl", "group_by": "team", "persona": who, "limit": 2}))
+                print(f"  {who:9s} {res['headline']}")
+                if not res["refused"]:
+                    print(f"            top: {[(r['bucket'], r['n']) for r in res['rows']]}")
+
+            print("\nand the lead asking for log text")
+            res = payload(await session.call_tool("search_logs", {
+                "dataset": "bgl", "query": "ciod", "persona": "lead", "limit": 1}))
+            print(" ", res["headline"])
+            print(" ", res["notes"][0][:160])
+            assert res["refused"] is True, "the lead must not be able to search"
+
             print("\nstock-client check: PASS")
             return 0
 

@@ -8,6 +8,8 @@ from __future__ import annotations
 import sys
 from typing import Any
 
+import psycopg
+
 from . import db, tools
 from .datasets import catalogue
 
@@ -28,8 +30,8 @@ def main() -> int:
     print(f"  engine: {db.ping()}")
 
     print("\nregression vs make smoke")
-    check("bgl rows", tools.describe_data("bgl")["rows"][0]["rows"], 4_747_963)
-    check("openstack rows", tools.describe_data("openstack")["rows"][0]["rows"], 207_812)
+    check("bgl rows (as the engineer role)", tools.describe_data(dataset="bgl")["rows"][0]["total"], 4_747_963)
+    check("openstack rows", tools.describe_data(dataset="openstack")["rows"][0]["total"], 207_812)
     check("bgl alert lines", db.scalar("SELECT count(*) FROM bgl_ev WHERE is_alert"), 348_460)
     check(
         "episodes at a 5-minute gap (signature x midplane)",
@@ -107,6 +109,47 @@ def main() -> int:
     check("evidence carries the SQL", phrase["query"].startswith("SELECT"), True)
     check("evidence carries the operator", "operator" in phrase, True)
     check("truncated == total > returned", phrase["truncated"] == (phrase["total_matches"] > phrase["returned"]), True)
+
+    print("\npersonas: three roles, three different views of the same data")
+    eng = tools.describe_data(persona="engineer", dataset="bgl")
+    check("engineer reads raw lines", eng["rows"][0]["readable_as"], "bgl_ev")
+    check("engineer can search", eng["rows"][0]["can_search"], True)
+    lead = tools.describe_data(persona="lead", dataset="bgl")
+    check("lead reads an aggregate, not lines", lead["rows"][0]["readable_as"], "lead_bgl_daily")
+    check("lead cannot search", lead["rows"][0]["can_search"], False)
+    check("manager reads only the rollup",
+          tools.describe_data(persona="manager", dataset="corpus")["rows"][0]["readable_as"],
+          "mgr_rollup_daily")
+
+    lead_search = tools.search_logs("bgl", "ciod", persona="lead")
+    check("the lead's search is refused, not silently empty", lead_search["refused"], True)
+    check("the refusal names the persona", lead_search["persona"], "lead")
+    check("the manager's search is refused too",
+          tools.search_logs("bgl", "ciod", persona="manager")["refused"], True)
+    check("the engineer's search is not refused",
+          tools.search_logs("bgl", "ciod", persona="engineer", mode="term")["refused"], False)
+    hidden = tools.count_events("corpus", persona="engineer")
+    check("a persona cannot reach a dataset it has no view for", hidden["refused"], True)
+    check("...and the refusal names what it may read",
+          "cannot read 'corpus'" in hidden["notes"][0], True)
+
+    lead_team = tools.count_events("bgl", group_by="team", persona="lead")
+    check("lead counts by summing the view's measure", lead_team["measure"], "lines")
+    check("lead total is still 4,747,963 lines", lead_team["total_matches"], 4_747_963)
+    check("lead by team: compute-platform",
+          {r["bucket"]: r["n"] for r in lead_team["rows"]}.get("compute-platform"), 4_325_112)
+
+    mgr = tools.count_events("bgl", group_by="team", persona="manager")
+    check("manager sums alert_lines, not rows", mgr["measure"], "alert_lines")
+    check("manager total = 348,460 alert lines", mgr["total_matches"], 348_460)
+    check("the never-sum warning is carried",
+          any("never sum" in n for n in mgr["notes"]), True)
+
+    try:
+        db.query("SELECT 1 FROM bgl_ev LIMIT 1", role="exhibit_manager")
+        check("the DATABASE refuses a manager reading bgl_ev", "allowed", "permission denied")
+    except psycopg.errors.InsufficientPrivilege:
+        check("the DATABASE refuses a manager reading bgl_ev", "permission denied", "permission denied")
 
     print("\nclient-side deadline (the engine accepts statement_timeout and ignores it)")
     try:
