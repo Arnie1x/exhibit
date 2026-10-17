@@ -11,7 +11,7 @@ Rules this script keeps:
 - **Every number** below is already in `docs/slides.md` or is printed by `make smoke`, `make demo`,
   `make check`, `make eval` or `make validate`. Each unit names the command and section that prints
   it. Re-run on 17 Oct against SereneDB 26.09.1.3, every one matched: `make smoke`, `make demo`,
-  `make eval`, `make validate` and the stock client of `make check`. Two figures were not re-run
+  `make eval`, `make validate` and the stock-client script of `make check`. Two figures were not re-run
   and come from `docs/slides.md`: `make check` 101/101 (slide 9) and the bench (slide 11).
 - **No impact claims.** The narration states no cost, downtime, customer, revenue or SLA figure. The
   only places such words appear on screen are the manager's "Not established" line (U8) and the lint
@@ -28,12 +28,12 @@ Rules this script keeps:
 1. `make bootstrap` (about 20 s), then `make smoke`, `make demo`, `make check`, `make eval`,
    `make validate`: all green, numbers as in the units below. On Windows there is no `make`: run each
    recipe by hand as the README says (`MSYS_NO_PATHCONV=1`, `PYTHONUTF8=1`).
-2. Connect a chat MCP client to the server over stdio with
+2. Connect a stock MCP client (Claude Desktop, or any client that runs a stdio server) with
    `uv --directory /ABSOLUTE/PATH/exhibit run exhibit-mcp` (the command behind `make mcp`). Check
    that it lists 12 tools. The persona is the tools' `persona` argument; the server maps it to a
    SereneDB role, so the database, not the prompt, decides what each persona can read.
 3. Record the fallbacks first: the full `make demo` output and the full output of
-   `uv run python scripts/stage2_mcp_client.py` (a stock MCP client). Every number the MCP client
+   `uv run python scripts/stage2_mcp_client.py` (the stock-client script). Every number the MCP client
    shows in this script is also printed by one of those two. If the model picks other tools in a
    take, cut to the fallback; the narration does not change.
 4. Terminal: 18 pt font, at least 120 columns (the `make demo` tables are wide), commands typed
@@ -99,8 +99,8 @@ the 5:00 version with less screen time around each, and no unit in it depends on
 
 > **Say:** Under the hood: an MCP server with twelve tools. SereneDB does the searching and counting; each tool returns its query and an evidence ID, and the model only explains.
 
-- **Numbers on screen:** 12 tools (`describe_data` … `lint_answer`): `make check` (the stock client
-  prints the list); slide 5.
+- **Numbers on screen:** 12 tools (`describe_data` … `lint_answer`): `make check` (the stock-client
+  script prints the list); slide 5.
 
 ### U4 · Roles in the database · 20 s
 
@@ -114,7 +114,7 @@ the 5:00 version with less screen time around each, and no unit in it depends on
 
 - **Numbers on screen:**
   - engineer `4,747,963 matching rows`; lead `4,747,963 sum of lines`; manager
-    `348,460 sum of alert_lines`: `make check` (stock client, "the same question, asked as the three
+    `348,460 sum of alert_lines`: `make check` (stock-client script, "the same question, asked as the three
     personas"); slide 6.
   - the lead's search: `NOT PERMITTED for lead@exhibit_lead`: `make check`.
 
@@ -234,7 +234,7 @@ the 5:00 version with less screen time around each, and no unit in it depends on
 ### U11b · Lint and eval · 12 s
 
 - **5:00** 4:09–4:21 · **3:00** cut
-- **Screen:** the MCP client: `lint_answer` on the stock client's rejected manager answer (the text
+- **Screen:** the MCP client: `lint_answer` on the stock-client script's rejected manager answer (the text
   in `scripts/stage2_mcp_client.py`), verdict `rejected (2 rejections)`. Then terminal `make eval`,
   last three lines. Slide 9 as the summary card.
 
