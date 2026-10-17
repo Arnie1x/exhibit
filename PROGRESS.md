@@ -356,6 +356,15 @@ halves, which is where the bugs were:**
 * `make bench` runs `sql/70_bench.sql`, which does not exist, so that target fails in a clean
   checkout. Yours (bonus ladder §14); either write it or I will have the target say it is not
   implemented yet.
+* **`make derive` was broken on a clean clone and nobody could have seen it**: `DATA` and `MAP`
+  carried trailing whitespace because the comments sat on the assignment lines
+  (`DATA ?= /data/loghub   # ...` — in Make, the whitespace before a trailing `#` is part of the
+  value). `make derive` therefore asked for `/data/ownership.csv   ` and the glob matched nothing.
+  Every target I had verified on a clone — `setup`, `check`, `eval` — skips derive, so the gate that
+  catches it is the full sequence: **`make clean-check` now passes end to end** ("clean checkout
+  OK"), and the fix is in this branch. If your own `make bootstrap` has been working, it is because
+  your checkout has the same padded value *and* a `data/ownership.csv` path that tolerates it — run
+  `make clean-check` once to be sure.
 * `docs/disclosure.md` now exists (the rules require disclosing models, tools and datasets, and the
   README pointed at a file that was not there). It states plainly which assistant wrote which lane —
   Claude Code for yours, Hermes for mine — and that no model runs in the answer path.
