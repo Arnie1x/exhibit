@@ -20,10 +20,18 @@ PORT = int(os.getenv("SERENEDB_PORT", "7890"))
 USER = os.getenv("SERENEDB_USER", "postgres")
 DBNAME = os.getenv("SERENEDB_DB", "postgres")
 PASSWORD = os.getenv("SERENEDB_PASSWORD") or None
-# Stage 4: each persona connects as its own database role. Empty = the owner (postgres).
-ROLE = os.getenv("EXHIBIT_ROLE", "")
 # Client-side per-statement deadline in seconds (0 disables). See query().
 TIMEOUT_S = float(os.getenv("EXHIBIT_QUERY_TIMEOUT", "30"))
+
+
+def default_persona() -> str:
+    """Which persona the tools act as when the caller does not name one.
+
+    EXHIBIT_ROLE holds a persona *key* (`engineer`), not a database role name -- `datasets.py` maps
+    it to `exhibit_engineer`. Keeping the two names apart matters: `SET ROLE engineer` fails,
+    because no such role exists.
+    """
+    return (os.getenv("EXHIBIT_PERSONA") or os.getenv("EXHIBIT_ROLE") or "engineer").strip().lower()
 
 
 def dsn() -> str:
@@ -67,11 +75,15 @@ def _literal(value: Any) -> str:
 
 @contextmanager
 def connect(role: str | None = None):
-    """A short-lived connection. ``role`` issues SET ROLE for persona-scoped work."""
+    """A short-lived connection, optionally under a database role.
+
+    ``role`` must be a **database role name** (`exhibit_lead`). It is applied with SET ROLE, so the
+    engine -- not this code -- decides what the statement may read. Passing None means "no role":
+    the connection's own identity, used only for setup.
+    """
     with psycopg.connect(dsn(), row_factory=dict_row) as conn:
-        wanted = role if role is not None else ROLE
-        if wanted:
-            conn.execute(f"SET ROLE {wanted}")
+        if role:
+            conn.execute(f"SET ROLE {role}")
         yield conn
 
 

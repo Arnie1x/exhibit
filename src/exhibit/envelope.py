@@ -27,6 +27,10 @@ class Envelope:
     columns: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     operator: str = ""          # which full-text operator produced these numbers
+    persona: str = ""           # who asked
+    role: str = ""              # the database role it ran under (the enforcement point)
+    refused: bool = False       # the role may not see this at all -- no SQL was run
+    measure: str | None = None  # None -> counted rows; else the column that was summed
 
     # ------------------------------------------------------------------ derived
     @property
@@ -43,7 +47,13 @@ class Envelope:
     def evidence_id(self) -> str:
         """Stable id for this query+params pair: same query, same id, across runs."""
         payload = json.dumps(
-            {"tool": self.tool, "sql": self.sql, "params": _jsonable(self.params), "scope": self.scope},
+            {
+                "tool": self.tool,
+                "sql": self.sql,
+                "params": _jsonable(self.params),
+                "scope": self.scope,
+                "persona": self.persona,
+            },
             sort_keys=True,
         )
         return "E-" + hashlib.sha1(payload.encode()).hexdigest()[:6].upper()
@@ -52,6 +62,10 @@ class Envelope:
         return {
             "tool": self.tool,
             "dataset": self.dataset,
+            "persona": self.persona,
+            "role": self.role,
+            "refused": self.refused,
+            "measure": self.measure,
             "scope": self.scope,
             "evidence_id": self.evidence_id,
             "total_matches": self.total_matches,
@@ -66,10 +80,18 @@ class Envelope:
 
     def headline(self) -> str:
         """One line an agent can quote, with the evidence id attached."""
-        n = "?" if self.total_matches is None else f"{self.total_matches:,}"
         scope = ", ".join(f"{k}={v}" for k, v in self.scope.items() if v not in (None, ""))
+        who = f"{self.persona}@{self.role}" if self.persona else self.role
+        if self.refused:
+            return f"[{self.evidence_id}] {self.tool}: NOT PERMITTED for {who}" + (
+                f" | {scope}" if scope else ""
+            )
+        n = "?" if self.total_matches is None else f"{self.total_matches:,}"
+        what = f"sum of {self.measure}" if self.measure else "matching rows"
         trunc = f" (showing {self.returned})" if self.truncated else ""
-        return f"[{self.evidence_id}] {self.tool}: {n} matching rows{trunc}" + (f" | {scope}" if scope else "")
+        return f"[{self.evidence_id}] {self.tool}: {n} {what}{trunc}" + (
+            f" | {who}, {scope}" if scope else f" | {who}"
+        )
 
 
 def _jsonable(value: Any) -> Any:
