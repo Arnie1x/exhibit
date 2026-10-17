@@ -102,7 +102,7 @@ Both datasets from Zenodo record 8196385 (~770 MB), parsed by `scripts/parse.py`
 | Alert lines (`label <> '-'`) | **348,460** | — |
 | Distinct nodes (id string) | 69,252 | — |
 | Components | 10 | — |
-| Error level lines | ERROR 112,355 · FATAL 855,501 | ERROR 186 · CRITICAL 2 |
+| Error level lines | ERROR 112,355 · FATAL 855,501 | ERROR 186 · CRITICAL 2 (184 of the 188 are 8 tracebacks of one bug) |
 
 **BGL has four record shapes**, which is why a naive parser silently drops ~0.7% of the file.
 The anchor is the `<TYPE> <COMPONENT> <LEVEL>` triple, where TYPE is `RAS` **or** `NULL`
@@ -121,10 +121,10 @@ view on the label column undercounts faults by ~24%. Build it on **message signa
 
 | Event | Lines | Nodes |
 |---|---|---|
-| Burst, 2005-06-11 17:17 → 22:59 | **136,209** | **1** |
+| Burst, 2005-06-11 17:17:44 → 23:39:32 | **152,183** | **1** |
 | Fleet event, 2005-06-14 | **49,154** | **22,529** |
 
-**39% of all alert lines in the corpus come from one node in under six hours.** Ranking by
+**44% of all alert lines in the corpus come from one node in six and a half hours.** Ranking by
 volume puts a single sick machine on top and buries a fleet-wide event that touched 22,529
 nodes. There is a third day, 2005-06-13, with 17,409 lines across 16,644 nodes.
 
@@ -139,10 +139,17 @@ the volume leaders:
 | `rts: kernel terminated for reason {N}` | 18,587 | 2,641 |
 
 **4. OpenStack's entire error surface is one bug, repeated eight times.** `oslo_service.periodic_task`
-emits **184 ERROR lines**, all from `nova.virt.libvirt.imagecache` → `qemu_img_info` →
-`InvalidDiskInfo`. There are exactly **8** `Traceback (most recent call last):` headers. The
+logs **184 ERROR lines** whose stack frames run through `nova.virt.libvirt.imagecache` →
+`qemu_img_info` → `InvalidDiskInfo` (the *logger* is the periodic task, not imagecache). There are exactly **8** `Traceback (most recent call last):` headers. The
 same root cause produces **3,059 WARNING lines** (`Unknown base file: /var/lib/nova/instances/_base/...`).
-188 error lines ≈ **8 incidents of 1 bug.**
+184 of the corpus's 188 ERROR+CRITICAL lines are **8 incidents of 1 bug** — and a line leaderboard
+cannot see them.
+
+**And this one bug spans two teams**, which is the sort of thing a per-team report gets wrong: the
+ERROR lines are logged by `oslo_service.periodic_task` and so are owned by **`platform-services`**,
+while the warnings from the same root cause are logged by `nova.virt.libvirt.imagecache` and owned by
+**`image-service`**. Logger-first precedence is a rule, not the truth — our lead answer says so out
+loud rather than quietly picking a side.
 
 *And one signal that volume hides:* `keystonemiddleware.auth_token` emits **2 CRITICAL** lines —
 the only CRITICAL in the entire corpus — plus 2 ERROR and 2 WARNING. Six lines. A line-count
@@ -305,7 +312,7 @@ aspirational.
 The question is deliberately the one every persona would ask. The three answers use different
 evidence:
 
-- *engineer*: `top_signatures` returns `data TLB error interrupt` with 152,734 lines — and `search_logs` shows it is one node emitting 136,209 lines in 5h43m.
+- *engineer*: `top_signatures` returns `data TLB error interrupt` with 152,734 lines — and `search_logs` shows it is one node emitting 152,183 lines in 6h22m.
 - *lead*: grouped by team, 91% of alert volume belongs to `compute-platform`; but by episodes, the recurring dull ache is `ciod` and `Lustre mount FAILED`, thousands of small incidents across eight nodes.
 - *manager*: 348,460 alert lines → 19,250 incidents → ranked by blast radius and persistence, with `Not established` for cost. The recommendation is a statement about *what to fix first and why*, not a count.
 
@@ -313,7 +320,7 @@ evidence:
 
 - *engineer*: latency percentiles are identical between the normal and abnormal files (mean 0.234 s both). Nothing to see.
 - *lead*: `durations` ranks instances by lifecycle duration — the four labelled anomalies occupy positions 1–4.
-- *manager*: eight incidents of one imagecache bug; six lines of CRITICAL auth failures that no volume ranking would surface.
+- *manager*: eight incidents of one imagecache bug; 2 CRITICAL token-validation failures (6 lines) that no volume ranking would surface — and that bug's bill lands on two different teams.
 
 **Hidden validation (the credibility device).** `anomaly_labels.txt` and BGL's `label` column are
 used by a **separate script** that the agent cannot call and cannot read. It reports recall
@@ -388,7 +395,7 @@ this hour, and the demo stream is a **shared two-hour block each day**, not a so
 
 **Do this in the next two hours:**
 
-- **Adnan:** run `make probe`, then read `docs/capabilities.md` and try to **break** it — re-measure the partial-index row and the dictionary row. Independently confirm 348,460 → 19,250 and the 136,209-on-one-node figure. Then port `sql/50_roles.sql` (it still references the old flat tables) and extend `os_sig` with anything W2 needs.
+- **Adnan (done, 17 Oct — `PROGRESS.md` items 1–2):** re-probed on the current schema and **broke one row** — a partial index *does* restrict on pattern B (it is ignored only on a search table). Independently recomputed every headline number and **corrected one: the one-node burst is 152,183 lines, not 136,209** — my figure was that burst cut at a 23:00 window boundary. Ported `sql/50_roles.sql` to `bgl_ev`/`os_ev`; the scope proof runs clean, including the five denials.
 - **Arnie:** get one real end-to-end call working — stock client → MCP server → `bgl_idx` → envelope → cited answer. Not five tools; **one**, and ugly is fine. Then the ledger.
 - **Both:** in the Q&A, ask the questions in §13; write the answers into this file the same night.
 
@@ -412,7 +419,7 @@ exactly one slot.
 8. **Is a private repo during the build acceptable if it is public at submission?** (Also ask this in Discord in case the room is short.)
 
 **The 10-minute script:** 30 seconds of introduction ("two MSc students, we built X") → then the
-**money comparison** from §4 finding 2 on screen (136,209 lines on one node vs 49,154 lines on
+**money comparison** from §4 finding 2 on screen (152,183 lines on one node vs 49,154 lines on
 22,529 nodes) → then your questions. The comparison buys credibility in ten seconds and makes
 everyone in the room want to help you.
 
@@ -494,9 +501,9 @@ branch at most; every claim in the README reproducible from a clean checkout.
 ```
 BGL 4,747,963 rows · OpenStack 207,812 rows · span 2005-06-03 → 2006-01-04
 alert lines 348,460 → 19,250 failure-domain episodes → 1,377 global episodes
-136,209 lines on 1 node (2005-06-11)  vs  49,154 lines on 22,529 nodes (2005-06-14)
+152,183 lines on 1 node (2005-06-11)  vs  49,154 lines on 22,529 nodes (2005-06-14)
 84,253 fault lines carrying the "normal" label
-OpenStack: 188 error lines = 8 tracebacks of one bug + 6 CRITICAL auth lines
+OpenStack: 188 ERROR+CRITICAL lines = 184 lines in 8 tracebacks of one imagecache bug + 4 token-validation lines (2 failed validations, 6 lines with their 2 WARNINGs)
 4 of 4 labelled anomalies in the top 4 by lifecycle duration
 ownership coverage 100% · derive 14 s · index 5.6 s
 ```
