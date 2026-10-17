@@ -317,6 +317,11 @@ Also added while I was in there, because the demo quotes it: `episodes` takes **
 
 ## Handoff back, round 3 — the lints, the eval, and three seam fixes (Arnie, Sat 17 Oct)
 
+> **Update, 14:0x UTC:** PR #3 is **merged** into `main` at Arnie's instruction (`main` = `116c4e5`;
+> rebase, no rewrites). Verified from a fresh clone of merged `main`: **101/101 checks, stock client
+> PASS, `make eval` 15/15**. The review points below stand for reading — and the Q&A tonight is
+> where we close the loop on them. See also the new **Status column in `PLAN.md` §11**.
+
 **First, what happened to your half:** PR #2 was merged into `main` at 12:21 UTC today (rebase; your
 Stage 3 is the base of it). `main` = `0fe49f6`, and a clean clone of `main` passes 94/94 + the stock
 client. Nothing of yours was rewritten; the `PROGRESS.md` conflict was the only overlap.
