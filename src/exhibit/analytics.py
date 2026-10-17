@@ -520,8 +520,12 @@ def durations(
         params.append(team.lower())
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     sel = ", ".join([src.key, *src.extra])
+    # Ties fall back to the key so the order is total: 292 distinct spawn_s values over 2,066
+    # instances means tied rows would otherwise swap between runs and a stored hash could stop
+    # matching. (NULLS LAST is this engine's default even under DESC; writing it keeps the
+    # statement portable.)
     sql = (f"SELECT {sel}, {phase} AS ranked_by FROM {src.relation}{where}"
-           f" ORDER BY {phase} DESC LIMIT %s")
+           f" ORDER BY {phase} DESC NULLS LAST, {src.key} LIMIT %s")
     rows = db.query(sql, [*params, limit], role=p.role)
     total = db.scalar(f"SELECT count(*) FROM {src.relation}{where}", params, role=p.role)
 
@@ -772,12 +776,24 @@ def verify_evidence(evidence_id: str, sample: int = 3) -> dict:
     eid = (evidence_id or "").strip().upper()
     if not eid:
         raise ValueError("give an evidence id, e.g. E-1A2B3C; every answer prints one")
-    result = ledger.verify(eid, sample=_clamp(sample, default=3, hard=20))
-    for field, value in list(result.items()):
-        if isinstance(value, list) and value and isinstance(value[0], dict):
-            result[field] = [{k: _jsonable(v) for k, v in row.items()} for row in value]
-    result["ledger_size"] = ledger.count()
-    result["evidence_ids_recent"] = [r["evidence_id"] for r in ledger.entries(limit=10)]
+    try:
+        result = ledger.verify(eid, sample=_clamp(sample, default=3, hard=20))
+        for field, value in list(result.items()):
+            if isinstance(value, list) and value and isinstance(value[0], dict):
+                result[field] = [{k: _jsonable(v) for k, v in row.items()} for row in value]
+        result["ledger_size"] = ledger.count()
+        result["evidence_ids_recent"] = [r["evidence_id"] for r in ledger.entries(limit=10)]
+    except psycopg.errors.UndefinedTable:
+        return {
+            "evidence_id": eid,
+            "match": None,
+            "verdict": (
+                "NO LEDGER - this database has no exhibit_evidence table, so there is nothing to "
+                "verify against yet. The table is created by sql/55_evidence.sql: run `make "
+                "evidence` (or `make bootstrap`) and ask again."
+            ),
+            "note": "only happens on a database bootstrapped before sql/55_evidence.sql existed",
+        }
     result["note"] = (
         "a mismatch is not a bug in the ledger — it means the corpus or the definition moved since "
         "the answer was given, which is what a reader wants to know"
