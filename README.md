@@ -69,12 +69,49 @@ needs no mount.
 | `tests/golden/headline_numbers.sql` | Independent SQL for the headline numbers (verifier-written) | done |
 | `scripts/parse.py` | BGL + OpenStack → Parquet (zero lines lost) | done |
 | `scripts/md2pdf.py` | Markdown → PDF, for the plan and the write-ups | done |
+| `src/exhibit/` | **The MCP server**: dataset registry, result envelope, the three Stage 2 tools | done, 24/24 checks |
+| `scripts/stage2_mcp_client.py` | Stock-client acceptance check — launches the server over stdio and uses it | done |
+| `pyproject.toml` | uv project; `mcp` 2.x (`MCPServer`) + psycopg 3 | done |
 | `data/ownership.csv` | **The team-ownership table** (see below) | done |
 | `sql/90_queries.sql` | The reference investigations, as the demo runs them | Stage 3 |
 | `evals/` | The evaluation set: questions + golden SQL | Stage 5 |
 
 Nothing in this repo is aspirational: a row marked *done* has been executed on the live corpus,
 and the stage numbers refer to `PLAN.md` §11.
+
+## Run the agent
+
+```bash
+make setup     # uv sync — creates .venv and installs mcp + psycopg
+make check     # acceptance: 24 checks against the smoke numbers, then a stock MCP client
+make mcp       # run the server on stdio; point any MCP client at it
+```
+
+The server exposes three tools, each returning an **envelope** — the rows plus the SQL, the bound
+parameters, the operator that produced the counts, the true match total, a truncation flag and a
+stable evidence id:
+
+| Tool | Answers |
+|---|---|
+| `describe_data` | what can be asked, over what period, grouped how, owned by whom |
+| `search_logs` | find evidence — matching lines with highlighted terms, plus the real total |
+| `count_events` | how many, bucketed by signature / component / level / team / node |
+
+```
+$ uv run python scripts/stage2_mcp_client.py
+connected: exhibit 0.1.0
+tools: describe_data, search_logs, count_events
+calling search_logs(bgl, 'data TLB error interrupt', phrase)
+  [E-48A6C8] search_logs: 152,734 matching rows (showing 1) | dataset=bgl, query=data TLB error interrupt
+  operator: phrase (ts_phrase)
+  first highlight: <b>data TLB error interrupt</b>
+```
+
+> [!important] Two rules the server enforces
+> Search runs against the **index relation** (`bgl_idx`) and aggregation against the **table**
+> (`bgl_ev`) — `@@` against a plain table fails even with an index attached to it. And every count
+> reports the operator that produced it, because `@@`, a non-alpha splitter and `ILIKE` give three
+> different numbers on the same data.
 
 ## The ownership table
 
