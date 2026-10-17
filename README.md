@@ -54,19 +54,24 @@ needs no mount.
 
 ## Repository map
 
-| Path | What it is |
-|---|---|
-| `PLAN.md` | The full build plan: stages, gates, allocation, Q&A prep |
-| `CLAUDE.md` | Rules for coding agents (measured gotchas, conventions) |
-| `docs/capabilities.md` | What SereneDB 26.09.1.3 actually does — every row executed |
-| `docs/data-notes.md` | Corpus recon: BGL's four record shapes, the five findings |
-| `sql/10_derive.sql` | Raw Parquet → `bgl_ev`, `os_ev`, `owner_map` |
-| `sql/20_indexes.sql` | Dictionary + `bgl_idx` / `os_idx` |
-| `sql/30_views.sql` | Signatures, incidents, episodes, durations, role views |
-| `sql/90_queries.sql` | The reference investigations, exactly as the demo runs them |
-| `scripts/parse.py` | BGL + OpenStack → Parquet (zero lines lost) |
-| `data/ownership.csv` | **The team-ownership table** (see below) |
-| `evals/` | The evaluation set: questions + golden SQL |
+| Path | What it is | Status |
+|---|---|---|
+| `PLAN.md` | The full build plan: stages, gates, allocation, Q&A prep — **§16 is the rule list for coding agents** | done |
+| `docs/capabilities.md` | What SereneDB 26.09.1.3 actually does — every row executed | done |
+| `docs/data-notes.md` | Corpus recon: BGL's four record shapes, the five findings | done |
+| `sql/10_derive.sql` | Raw Parquet → `bgl_ev`, `os_ev`, `owner_map` | done, runs in 14 s |
+| `sql/20_indexes.sql` | Dictionary + `bgl_idx` / `os_idx` | done, runs in 5.6 s |
+| `sql/30_views.sql` | Signatures, episodes, incidents, durations | done |
+| `sql/99_smoke.sql` | The headline numbers, for verification | done |
+| `sql/50_roles.sql` | Role views + GRANTs | **needs porting** to the new tables |
+| `scripts/parse.py` | BGL + OpenStack → Parquet (zero lines lost) | done |
+| `scripts/md2pdf.py` | Markdown → PDF, for the plan and the write-ups | done |
+| `data/ownership.csv` | **The team-ownership table** (see below) | done |
+| `sql/90_queries.sql` | The reference investigations, as the demo runs them | Stage 3 |
+| `evals/` | The evaluation set: questions + golden SQL | Stage 5 |
+
+Nothing in this repo is aspirational: a row marked *done* has been executed on the live corpus,
+and the stage numbers refer to `PLAN.md` §11.
 
 ## The ownership table
 
