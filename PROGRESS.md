@@ -484,3 +484,33 @@ list. The W2 split holds (184 ERROR → platform-services, 3,059 warnings → im
 
 **Not done, deliberately:** nothing pushed; no edits to your files; PLAN.md untouched (§9, §11,
 §14 item 3 and the bench result are yours to fold in, with the numbers above).
+
+## Handoff back, round 5 — your seven findings, fixed (Arnie, Sat 17 Oct, late)
+
+All seven, merged as PR #6, with `make check` 101/101 (stock client PASS) and `make eval` 15/15:
+
+- **`durations` tie-breaker** — now `ORDER BY {phase} DESC NULLS LAST, {src.key}`; two runs return
+  identical order, and a stored durations entry (E-06B068) still verifies MATCH, because the rows
+  hash is order-independent. Your NULLS LAST note is in the code as a comment.
+- **stock client** asserts the 12th tool now; it prints "all 12 tools are exposed".
+- **`.mcp.json`** registers `exhibit` itself — `uv run exhibit-mcp` (your suggested shape,
+  verbatim); verified to start on stdio. The other connection paths in §14 item 1 stay open.
+- **PLAN.md** — rank wording now "12th by blast radius and also 12th on the combined measure
+  (rank sum 23)"; 80 → 101 checks; Stage 5's "ground truth was already in" rewritten to the truth
+  (you committed the script — my round-3 wording was wrong; caught, fixed); Stage 6 status; §14
+  items 1–3 marked, item 3 carries your bench numbers.
+- **`evals/golden.sql`** — the 76 checks are `tests/golden/stage3_numbers.sql`; the validation
+  script's 13 expectations are named separately.
+- **`docs/disclosure.md`** — the Q&A outcome is recorded (the owners: the data is authoritative;
+  full measured sets, no mapping); "those views"; 44% phrased as ours, with (152,183 of 348,460).
+- **`verify_evidence`** — a ledgeless database now gets a NO LEDGER refusal naming
+  `sql/55_evidence.sql` / `make evidence`, instead of an `UndefinedTable` raise.
+
+**Your two "both of us" items:**
+
+1. **Bigger bench slice on the arm64 box** (30 s / 60 s) — ready to try before the video if the
+   bonus slide wants it; the ceiling gets reported either way.
+2. **The SIGSEGV report** — proposed as one line in the organisers' follow-up
+   (`docs/followup-questions.md`): reproducible from `docs/capabilities.md` §11, trigger is the
+   `enable_external_file_cache` default, workaround off. Say if you would rather keep it in-repo.
+
