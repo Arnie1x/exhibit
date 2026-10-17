@@ -34,6 +34,7 @@ Both rankings are in the demo, side by side. That is what "making sense of logs"
 ```bash
 # 1. SereneDB (arm64: 26.09.1.3 is the newest multi-arch tag; 26.10.x is amd64-only)
 docker run -d --name serenedb -p 127.0.0.1:7890:7890 \
+  -e SERENEDB_HOST_AUTH_METHOD=trust \
   -v serenedb-data:/var/lib/serenedb -v "$PWD/data":/data serenedb/serenedb:26.09.1.3
 
 # 2. Raw Loghub data (BGL + OpenStack from Zenodo record 8196385: 63 MB of archives,
@@ -50,9 +51,15 @@ make smoke
 make mcp
 ```
 
-`psql -h 127.0.0.1 -p 7890 -U postgres` — no credentials by default. The server reads files
-from **its own** filesystem, hence the `-v "$PWD/data":/data` mount; remote HTTP/S3 Parquet
-needs no mount.
+`psql -h 127.0.0.1 -p 7890 -U postgres` — no password, because of that one env var. **Without it
+the container's default host auth demands a password even on loopback** (Docker Desktop forwards
+`127.0.0.1:7890` from the bridge, which the default HBA treats as remote), and you get
+`password authentication failed for user "postgres"` from a database that is, confusingly, empty of
+passwords. On first start the container's entrypoint writes the `trust` HBA and says so, with the
+scope warning reproduced here: trust means anyone who can reach the published port can connect as
+any role, which is why the port is published to `127.0.0.1` only. This is a laptop-and-demo
+setting; the repo never asks for it anywhere else. The server reads files from **its own**
+filesystem, hence the `-v "$PWD/data":/data` mount; remote HTTP/S3 Parquet needs no mount.
 
 ## Repository map
 
@@ -70,7 +77,7 @@ needs no mount.
 | `tests/golden/headline_numbers.sql` | Independent SQL for the headline numbers (verifier-written) | done |
 | `scripts/parse.py` | BGL + OpenStack → Parquet (zero lines lost) | done |
 | `scripts/md2pdf.py` | Markdown → PDF, for the plan and the write-ups | done |
-| `src/exhibit/` | **The MCP server**: persona-aware registry, result envelope, eleven tools, the evidence ledger | done, 85/85 checks |
+| `src/exhibit/` | **The MCP server**: persona-aware registry, result envelope, eleven tools, the evidence ledger | done, 94/94 checks |
 | `scripts/stage2_mcp_client.py` | Stock-client acceptance check — launches the server over stdio and uses it | done |
 | `pyproject.toml` | uv project; `mcp` 2.x (`MCPServer`) + psycopg 3 | done |
 | `data/ownership.csv` | **The team-ownership table** (see below) | done |
@@ -84,7 +91,7 @@ and the stage numbers refer to `PLAN.md` §11.
 
 ```bash
 make setup     # uv sync — creates .venv and installs mcp + psycopg
-make check     # acceptance: 85 checks against measured numbers, then a stock MCP client
+make check     # acceptance: 94 checks against measured numbers, then a stock MCP client
 make mcp       # run the server on stdio; point any MCP client at it
 ```
 

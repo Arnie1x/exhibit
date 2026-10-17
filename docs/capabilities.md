@@ -246,6 +246,67 @@ The instance id sits on normal-traffic lines and on none of the error lines, so:
 All three are guarded by acceptance checks, including one asserting the note does **not** appear for
 BGL, where every alert line names a node.
 
+### 8.2 A "signature" group that was returning the label
+
+`bgl_ev` has no `signature` column. The engineer's registry mapped `group_by="signature"` to
+`alert_category` — BGL's *label* — and `group_by="signature"` on OpenStack to `logger`. Both are
+coarser than a signature, and the label is the one thing this project exists to distrust: measured,
+`count_events(group_by="category")` puts **4,399,503 of 4,747,963 lines under the single label `-`**,
+while `group_by="signature"` on the same rows shows `generating core.{n}` at 1,706,751 and a long tail
+underneath it. The engineer now reads `bgl_sig` / `os_sig` (the same rows with the masked signature
+added), `signature` means the masked signature, and `category` is the label when you want it.
+
+`episodes` also gained a `signature=` filter, which is how the DTLB headline was cross-checked:
+**132 / 117 / 57** incidents at gaps of 60 / 300 / 3,600 seconds, computed by the teammate's literal
+SQL and by this tool's bound parameters, agreeing exactly. The filter is refused for the manager,
+whose relation names problems by `signature_id` rather than by text — a refusal that says so beats a
+filter that silently matches nothing.
+
+### 8.3 Two failures a green test suite did not catch
+
+Both were found by building and running, not by reading, and both are about the boundary *between*
+components rather than any one component:
+
+1. **Seven of ten tool calls were not JSON-serialisable.** The engine returns `DECIMAL` for
+   `sum(...)`, `date` for a truncated bucket, `datetime` for a timestamp, and `timedelta` for a
+   difference between two of them. `json.dumps` accepts none of those four. Every acceptance check
+   stayed green through it because the checks compare Python objects, and the MCP layer's pydantic
+   models were quietly absorbing what a strict client would reject. The manager's ranked list —
+   the exact artifact W1 turns on — raised `TypeError` on a plain client. Normalisation now lives in
+   the shared envelope (`tools._jsonable`), and a check dumps one call per tool per persona.
+   The knock-on effect mattered too: once the envelope normalised, `verify_evidence` reported
+   MISMATCH on identical answers (recorded rows were normalised, re-run rows were raw), so the
+   ledger's hash canonicalises both forms — a Decimal and an int now hash identically.
+2. **The server forwarded arguments positionally.** Adding one parameter to a tool's signature
+   silently shifted every later argument: `episodes(..., limit=3)` arrived as `signature=3`, and the
+   server answered `Could not convert string 'rts panic! - stopping execution' to INT16 ... WHERE
+   signature = $2`. No unit-level check could see this — the function was called correctly in every
+   test and incorrectly by its only real caller. Every wrapper now forwards by keyword, and the
+   stock-client check calls the tools over MCP, which is where this class of bug lives.
+
+## 8.4 Why a host connection needed a password (and the one flag that removes it)
+
+The container's `/entrypoint.sh` writes its HBA only when `SERENEDB_HOST_AUTH_METHOD` is set:
+
+```
+local all all <method>
+host  all all 0.0.0.0/0 <method>
+host  all all ::/0      <method>
+```
+
+Without it the default applies, which trusts `postgres` on the container's own loopback and demands a
+password from anywhere else — including a **host** connection through Docker's port forwarding, which
+the container sees as coming from the bridge. That is why `psql -h 127.0.0.1 -p 7890 -U postgres`
+works on one box and fails with `password authentication failed` on another, with no password set
+anywhere. Recognised values are `trust | reject | password | md5 | scram-sha-256`; **any other value
+logs a parse error and silently falls back to requiring a password**, so a typo costs access rather
+than failing loudly. `trust` is the laptop-and-demo setting and is only defensible because the port
+is published to `127.0.0.1` (and, on our box, the Tailscale address), not `0.0.0.0`.
+
+Related, for a judge without a host `psql`: `psql -f sql/x.sql` needs the file path to exist *inside*
+whatever runs psql, which `docker exec` breaks. Every Makefile target now uses `< sql/x.sql`, which
+works with a host client and with `PSQL='docker exec -i serenedb psql …'` alike.
+
 ## 9. Reproduction
 
 ```bash

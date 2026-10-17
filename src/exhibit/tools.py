@@ -15,7 +15,8 @@ privilege check on an index relation resolves to the base table they have no gra
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from . import db
@@ -72,7 +73,33 @@ def _scope(dataset_key: str, **kw) -> dict[str, Any]:
     return {"dataset": dataset_key, **{k: v for k, v in kw.items() if v not in (None, "", [])}}
 
 
+def _jsonable(value: Any) -> Any:
+    """A value a JSON client can carry.
+
+    This engine returns DECIMAL for ``sum(...)``, ``date`` for a truncated bucket, ``datetime`` for
+    a timestamp and ``timedelta`` for a difference between two of them; ``json.dumps`` accepts none
+    of the four. Measured before this existed: 7 of 10 tool calls raised ``TypeError`` on a strict
+    client while every acceptance check stayed green, because the checks compare Python objects and
+    the MCP layer's pydantic models were quietly absorbing the rest. Normalising in the envelope --
+    the one place every tool returns through -- gives the wire the shapes pydantic was already
+    emitting (ints and ISO strings) and lets the ledger hash what the caller actually sees.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, timedelta):
+        return str(value)            # the same rendering psql prints for an interval
+    return value
+
+
 def _envelope(tool: str, dataset_key: str, p: Persona, sql: str, **kw) -> dict:
+    if kw.get("rows"):
+        kw["rows"] = [{k: _jsonable(v) for k, v in row.items()} for row in kw["rows"]]
+    if kw.get("total_matches") is not None:
+        kw["total_matches"] = _jsonable(kw["total_matches"])
     env = Envelope(tool=tool, dataset=dataset_key, sql=sql, persona=p.key, role=p.role, **kw)
     out = env.as_dict()
     out["headline"] = env.headline()

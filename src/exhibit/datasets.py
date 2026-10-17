@@ -130,7 +130,12 @@ ENGINEER = Persona(
     notes="Raw lines and full-text search. The only role that can read log text.",
     views={
         "bgl": PersonaView(
-            relation="bgl_ev",
+            # bgl_sig, not bgl_ev: it is the same rows with the masked signature added, and the
+            # engineer is the role that gets to see it. bgl_ev has no `signature` column at all --
+            # its `alert_category` is the LABEL, which is a different and coarser thing (84,253
+            # ASSERT lines carry the label '-'), so grouping by it and calling it a signature is
+            # the trap the whole project is about.
+            relation="bgl_sig",
             search="bgl_idx",
             search_column="content",
             id_column="id",
@@ -138,7 +143,8 @@ ENGINEER = Persona(
             level_column="level",
             node_column="node",
             groups={
-                "signature": "alert_category",
+                "signature": "signature",
+                "category": "alert_category",
                 "component": "component",
                 "level": "level",
                 "team": "team",
@@ -152,7 +158,7 @@ ENGINEER = Persona(
             notes="Raw table plus the index relation by name — `@@` never runs against the table.",
         ),
         "openstack": PersonaView(
-            relation="os_ev",
+            relation="os_sig",       # os_ev's "signature" was the logger; os_sig carries the masked one
             search="os_idx",
             search_column="content",
             id_column="id",
@@ -160,7 +166,8 @@ ENGINEER = Persona(
             level_column="level",
             node_column="instance_id",
             groups={
-                "signature": "logger",
+                "signature": "signature",
+                "problem": "problem",
                 "logger": "logger",
                 "service": "service",
                 "level": "level",
@@ -347,6 +354,7 @@ class EpisodeSource:
     nodes_column: str = "nodes"          # stored path: the column holding it
     node_source: str = "node"            # computed path: the raw column that expression reads
     time_column: str = ""                # precomputed relations only: what `since`/`until` filter
+    key_column: str = ""                 # the column holding the signature text, for `signature=`
     note: str = ""
 
     @property
@@ -380,6 +388,7 @@ EPISODES: dict[tuple[str, str], EpisodeSource] = {
         partitions={"failure_domain": ("signature", "midplane"), "signature": ("signature",)},
         order=("ts",),
         filter_sql="is_alert",
+        key_column="signature",
         display=("signature", "alert_category", "component"),
         note="alert lines coalesced per signature x midplane; pass coalesce_by='signature' to drop "
              "the failure domain (19,250 becomes 1,377 at a 5-minute gap)",
@@ -393,12 +402,14 @@ EPISODES: dict[tuple[str, str], EpisodeSource] = {
         display=("service",),
         nodes="count(DISTINCT nullif(instance_id, 'NONE'))",
         node_source="instance_id",
+        key_column="problem",
         note="lines above INFO coalesced per problem",
     ),
     ("lead", "bgl"): EpisodeSource(
         kind="precomputed", relation="bgl_incident", gap_minutes=5,
         partitions={"failure_domain": ("signature", "midplane")},
         display=("component", "team"), nodes_column="nodes", time_column="started",
+        key_column="signature",
         note="one row per incident at the view's fixed 5-minute gap; the lead has no grant on "
              "bgl_sig, so the gap cannot be varied for this role",
     ),
@@ -406,6 +417,7 @@ EPISODES: dict[tuple[str, str], EpisodeSource] = {
         kind="precomputed", relation="os_incident", gap_minutes=5,
         partitions={"problem": ("problem",)},
         display=("service", "team"), nodes_column="instances", time_column="started",
+        key_column="problem",
         note="one row per incident at the view's fixed 5-minute gap",
     ),
     ("manager", "bgl"): EpisodeSource(

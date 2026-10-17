@@ -22,6 +22,8 @@ the caller's database role, so the three personas get three genuinely different 
 from __future__ import annotations
 
 import math
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 import psycopg
@@ -37,7 +39,7 @@ from .datasets import (
     episodes_of,
     rank_of,
 )
-from .tools import _agg, _asked, _as_dt, _envelope, _filters, _refuse, _scope
+from .tools import _agg, _asked, _as_dt, _envelope, _filters, _jsonable, _refuse, _scope
 
 MAX_ROWS = 200           # rule 9: hard cap on returned rows
 DEFAULT_ROWS = 20        # rule 9: default page size
@@ -60,10 +62,14 @@ def _finish(tool: str, dataset_key: str, p, sql: str, params: list[Any], **kw) -
     A ledger write that fails must not eat the answer: a demo that dies because its bookkeeping
     failed is worse than one that admits the bookkeeping failed.
 
-    ``full_rows`` is the statement's whole result when the envelope only shows a page of it -- the
-    ledger stores the hash of what a re-run would return, not of the page.
+    ``full_rows`` is the statement's whole result when the envelope only shows a page of it --
+    the ledger stores the hash of what a re-run would return, not of the page.
+
+    Rows are normalised to JSON-safe values here, once, for every tool.
     """
     full_rows = kw.pop("full_rows", None)
+    if full_rows is not None:
+        full_rows = [{k: _jsonable(v) for k, v in row.items()} for row in full_rows]
     env = _envelope(tool, dataset_key, p, sql, params=params, **kw)
     try:
         ledger.record(env, sql, params, rows=full_rows)
@@ -103,6 +109,7 @@ def episodes(
     persona: str | None = None,
     gap_minutes: int = 5,
     coalesce_by: str | None = None,
+    signature: str | None = None,
     limit: int = DEFAULT_ROWS,
     since: str | None = None,
     until: str | None = None,
@@ -120,8 +127,8 @@ def episodes(
     p = _asked(persona)
     key = dataset.strip().lower()
     view = p.views.get(key)
-    scope = _scope(dataset, gap_minutes=gap_minutes, coalesce_by=coalesce_by or "", since=since,
-                   until=until, level=level, team=team)
+    scope = _scope(dataset, gap_minutes=gap_minutes, coalesce_by=coalesce_by or "",
+                   signature=signature or "", since=since, until=until, level=level, team=team)
     if view is None:
         return _refused("episodes", dataset, p,
                         f"{p.key} cannot read {dataset!r}; readable: {', '.join(p.datasets)}", scope)
@@ -136,6 +143,12 @@ def episodes(
     if name not in src.partitions:
         return _refused("episodes", dataset, p,
                         f"coalesce_by must be one of: {', '.join(sorted(src.partitions))}", scope)
+    if signature and not src.key_column:
+        return _refused(
+            "episodes", dataset, p,
+            f"{p.key} cannot filter by signature text: {src.relation} names problems by "
+            f"{src.partitions[name][0]}, which is a key rather than log text. Filter on that key.",
+            scope)
 
     if src.kind == "precomputed":
         if src.gap_minutes is not None and gap != src.gap_minutes:
@@ -144,7 +157,8 @@ def episodes(
                 f"{p.key} reads {src.relation}, where incidents are already grouped at a "
                 f"{src.gap_minutes}-minute gap, so the gap is not a parameter for this role. The "
                 f"engineer reads the parsed relation and can vary it.", scope)
-        return _episodes_stored(p, key, src, name, limit, scope, since, until, team)
+        return _episodes_stored(p, key, src, name, limit, scope, since, until, team,
+                                signature=signature)
 
     parts = list(src.partitions[name])
     part_sql = ", ".join(parts)
@@ -158,6 +172,9 @@ def episodes(
     params: list[Any] = [gap]
     clauses = [src.filter_sql] if src.filter_sql else []
     clauses += _filters(view, params, since=since, until=until, level=level, team=team)
+    if signature:
+        clauses.append(f"{src.key_column} = %s")
+        params.append(signature)
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     select_cols = ", ".join(dict.fromkeys([sel, *extra]))
 
@@ -214,7 +231,7 @@ ORDER BY lines DESC, started, {part_sql}"""
 
 
 def _episodes_stored(p, key: str, src, name: str, limit: int, scope: dict,
-                     since, until, team) -> dict:
+                     since, until, team, signature: str | None = None) -> dict:
     """The lead's and manager's episode counts: already grouped, at the gap that relation states."""
     params: list[Any] = []
     clauses: list[str] = []
@@ -227,6 +244,9 @@ def _episodes_stored(p, key: str, src, name: str, limit: int, scope: dict,
     if team:
         clauses.append("team = %s")
         params.append(team.lower())
+    if signature and src.key_column:
+        clauses.append(f"{src.key_column} = %s")
+        params.append(signature)
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     gap_note = (f"incidents are already grouped at a {src.gap_minutes}-minute gap in "
                 f"{src.relation}; the gap is not a parameter for this role")
@@ -753,6 +773,9 @@ def verify_evidence(evidence_id: str, sample: int = 3) -> dict:
     if not eid:
         raise ValueError("give an evidence id, e.g. E-1A2B3C; every answer prints one")
     result = ledger.verify(eid, sample=_clamp(sample, default=3, hard=20))
+    for field, value in list(result.items()):
+        if isinstance(value, list) and value and isinstance(value[0], dict):
+            result[field] = [{k: _jsonable(v) for k, v in row.items()} for row in value]
     result["ledger_size"] = ledger.count()
     result["evidence_ids_recent"] = [r["evidence_id"] for r in ledger.entries(limit=10)]
     result["note"] = (

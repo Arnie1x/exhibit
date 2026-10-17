@@ -334,13 +334,21 @@ evidence:
   152,182 lines, 6h21m48s**, while `top_signatures by=nodes` puts `Microloader Assertion` on top and
   `by=episodes` puts `Lustre mount FAILED` there. Three criteria, three different answers, which is
   the finding the demo exists to show.
-- *lead*: grouped by team, `compute-platform` owns **91.1% of all lines** and **81.6% of alert
-  lines** — two different cuts, and the manager's view says 82% while the engineer's says 91%, which
-  is a demo point rather than a contradiction. By episodes the recurring dull ache is `ciod` and
-  `Lustre mount FAILED`: ~3,600 incidents each (against 6 for the six-hour burst), spread over
-  **1,024 nodes across 128 midplanes** — eight nodes *per midplane*, which is the number to quote
-  with its qualifier, because the fleet-wide figure is 128x bigger.
-- *manager*: 348,460 alert lines → 19,250 incidents → ranked by blast radius and persistence, with `Not established` for cost. The recommendation is a statement about *what to fix first and why*, not a count.
+- *lead*: grouped by team, `compute-platform` owns **91.1% of all lines** but **81.6% of alert
+  lines** and **51.7% of incidents** (9,952 of 19,250) — three cuts of one corpus, and the manager's
+  view says 82% while the engineer's says 91%, which is a demo point rather than a contradiction.
+  By incidents the recurring dull ache is two signatures: `Lustre mount FAILED : bglio{n} : point
+  /p/gb{n}` (**3,667** incidents, at most **8 nodes** in any one of them, 1,024 I/O nodes overall)
+  and `ciod: Error reading message prefix on CioStream socket … Link has been severed` (**3,638**)
+  — against 6 incidents for the whole six-hour burst. And the two are going opposite ways: **every
+  one of ciod's 3,638 incidents falls in the last 9 weeks of the corpus** (2005-11-17 → 2006-01-03)
+  while **all of Lustre's 3,667 are over by mid-September** (3 weeks, none in the last 9). One is a
+  wound that healed; the other is still bleeding, and volume rankings show neither.
+- *manager*: 348,460 alert lines → 19,250 incidents → ranked by blast radius and persistence, with `Not established` for cost. The ranking inverts the volume story: `data TLB error interrupt`,
+  first by lines, is **12th by blast radius** and 23rd by blast radius + persistence, while
+  `rts panic! - stopping execution` (**3,394 nodes on 124 days**) is first on the combined measure
+  — a slow burn across the fleet beating a six-hour fire on one machine. The recommendation is a
+  statement about *what to fix first and why*, not a count.
 
 **W2 — "Were the instances that were supposed to be slow actually slow?" (OpenStack)**
 

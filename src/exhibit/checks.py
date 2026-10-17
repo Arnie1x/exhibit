@@ -116,7 +116,8 @@ def main() -> int:
 
     print("\npersonas: three roles, three different views of the same data")
     eng = tools.describe_data(persona="engineer", dataset="bgl")
-    check("engineer reads raw lines", eng["rows"][0]["readable_as"], "bgl_ev")
+    check("engineer reads raw lines, with signatures on them",
+          eng["rows"][0]["readable_as"], "bgl_sig")
     check("engineer can search", eng["rows"][0]["can_search"], True)
     lead = tools.describe_data(persona="lead", dataset="bgl")
     check("lead reads an aggregate, not lines", lead["rows"][0]["readable_as"], "lead_bgl_daily")
@@ -201,6 +202,26 @@ def main() -> int:
     check("the lead cannot vary the gap", gap_refused["refused"], True)
     check("...and the refusal says why", "not a parameter" in gap_refused["notes"][0], True)
 
+    print("\nsignatures are signatures, not labels (the trap, in two calls)")
+    sig = tools.count_events("bgl", group_by="signature", limit=1)
+    cat = tools.count_events("bgl", group_by="category", limit=1)
+    check("the engineer's `signature` group returns a masked signature",
+          sig["rows"][0]["bucket"], "generating core.{n}")
+    check("...while `category` still exposes the label everyone else trusts",
+          cat["rows"][0]["bucket"], "-")
+    check("...and that label sits on 4.4M of 4.7M lines", cat["rows"][0]["n"], 4_399_503)
+    for gap, expect in ((1, 132), (5, 117), (60, 57)):
+        e = analytics.episodes("bgl", "engineer", gap_minutes=gap,
+                               signature="data TLB error interrupt", limit=1)
+        check(f"episodes reproduces the DTLB headline at a {gap}-minute gap "
+              f"(the gap bound through the driver, not a literal)",
+              e["total_matches"], expect)
+    check("the lead's relation can still filter by signature text",
+          analytics.episodes("bgl", "lead", signature="data TLB error interrupt",
+                             limit=1).get("refused", False), False)
+    check("the manager cannot filter by signature text, and is told why",
+          analytics.episodes("bgl", "manager", signature="data TLB error interrupt")["refused"], True)
+
     print("\ntop_signatures: the three rankings disagree, which is the finding")
     by_lines = analytics.top_signatures("bgl", "engineer", by="lines", limit=3)
     by_nodes = analytics.top_signatures("bgl", "engineer", by="nodes", limit=3)
@@ -274,6 +295,37 @@ def main() -> int:
         check("an unknown evidence id errors instead of guessing", "KeyError", "KeyError")
     check("a refusal is recorded as evidence too",
           analytics.ledger.latest(gap_refused["evidence_id"]) is not None, True)
+
+    print("\nevery answer survives a strict JSON client")
+    # The engine hands back DECIMAL for sum(...), date for a bucketed day, datetime for a timestamp
+    # and timedelta for a duration -- none of which json.dumps accepts. The checks above compare
+    # Python objects and the MCP layer's pydantic models absorb the rest, so this shipped broken
+    # once: a manager's ranked list raised TypeError on a strict client while everything here was
+    # green. One check, every persona, every tool shape that has leaked so far.
+    import json as _json
+    strict_calls = {
+        "describe_data eng": lambda: tools.describe_data(persona="engineer", dataset="bgl"),
+        "count_events eng": lambda: tools.count_events("bgl", group_by="signature", limit=2),
+        "search_logs eng": lambda: tools.search_logs("bgl", "ciod", limit=2),
+        "top_signatures mgr": lambda: analytics.top_signatures("bgl", "manager", by="nodes", limit=2),
+        "top_signatures lead": lambda: analytics.top_signatures("bgl", "lead", by="lines", limit=2),
+        "episodes eng": lambda: analytics.episodes("bgl", "engineer", limit=2),
+        "episodes lead": lambda: analytics.episodes("bgl", "lead", limit=2),
+        "trend lead": lambda: analytics.trend("bgl", "lead", bucket="day", limit=2),
+        "durations mgr": lambda: analytics.durations(persona="manager", limit=2),
+        "ownership eng": lambda: analytics.ownership(persona="engineer"),
+        "nearby_events eng": lambda: analytics.nearby_events("bgl", "engineer", id=4_740_000,
+                                                             limit=1),
+        "what_changed eng": lambda: analytics.what_changed("bgl", "engineer", limit=1),
+    }
+    unserialisable = []
+    for name, call in strict_calls.items():
+        try:
+            _json.dumps(call())
+        except (TypeError, ValueError) as exc:
+            unserialisable.append(f"{name}: {exc}")
+    check(f"all {len(strict_calls)} sampled answers serialise for a strict client",
+          unserialisable or "all serialisable", "all serialisable")
 
     failures = [r for r in _results if r[0] == FAIL]
     print(f"\n{len(_results) - len(failures)}/{len(_results)} checks passed")
