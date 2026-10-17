@@ -142,6 +142,17 @@ workspace index's predicate ourselves.
 - Confirmed absent: `to_timestamp(text)` (epoch only), `to_char`, `to_date`.
 - `ts_any` / `ts_all` with a **bound parameter** need a cast: `ts_any(%s::TSQUERY[])` → 382,098. A bare
   Python list raises `Could not choose a best candidate function for the function call ts_any(STRING_LITERAL)`.
+- **`= ANY(%s)` with a bound list needs the same cast** (17 Oct, Adnan, psycopg 3): a bare list raises
+  `FeatureNotSupported: UNNEST not supported here`; `instance_id = ANY(%s::VARCHAR[])` and
+  `list_contains(%s::VARCHAR[], instance_id)` both work (2 of 2 rows for two instance IDs).
+- **`NULL`s sort last in both directions** (17 Oct, Adnan): `ORDER BY spawn_s DESC` over
+  `os_instance_durations` returns 50.72 first and `ASC` returns 10.12 first; the 3 `NULL` rows come
+  last both times. PostgreSQL puts them **first** under `DESC`. Write `NULLS LAST` explicitly, so the
+  statement reads the same on either engine.
+- **`arg_max` breaks ties by scan order, not deterministically** (17 Oct, Adnan): over a 1–1 tie (the
+  signature `ciodb exited normally with exit code {n}`: one `MASNORM` line, one `-` line) it returned a
+  different label on consecutive runs, so a count built on it moved by one (TP 348,455, then 348,454).
+  Pick a winner with `row_number() OVER (PARTITION BY … ORDER BY n DESC, <key>)` instead.
 
 ## 5. Tokenization — a design decision with numbers attached
 
@@ -359,8 +370,8 @@ Two real defects surfaced by building it, both at the seams rather than in any s
 ## 10. Reproduction
 
 ```bash
-docker run -d --name serenedb -p 127.0.0.1:7890:7890 -v serenedb-data:/var/lib/serenedb \
-  -v "$PWD/data":/data serenedb/serenedb:26.09.1.3
+docker run -d --name serenedb -p 127.0.0.1:7890:7890 -e SERENEDB_HOST_AUTH_METHOD=trust \
+  -v serenedb-data:/var/lib/serenedb -v "$PWD/data":/data serenedb/serenedb:26.09.1.3
 psql -h 127.0.0.1 -p 7890 -U postgres -v data=/data/loghub -v map=/data/ownership.csv \
      -f sql/10_derive.sql                                       # 14 s (8.7 s on 16 vCPU)
 psql -h 127.0.0.1 -p 7890 -U postgres -f sql/20_indexes.sql   # 5.6 s (2.4 s)
