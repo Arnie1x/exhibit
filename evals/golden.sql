@@ -3,7 +3,8 @@
 -- Deliberately NOT the SQL the tools build: each statement here is fixed and returns exactly the
 -- figure a question is scored against, so a change to a tool's SQL cannot silently move a number.
 -- The figures themselves were first recomputed from the raw corpus without the views
--- (scripts/validate_ground_truth.py: 76 of 76 checks matched) and are pinned in sql/99_smoke.sql.
+-- (tests/golden/stage3_numbers.sql: 76 of 76 checks matched; scripts/validate_ground_truth.py
+-- adds 13 expectations against the answer keys) and are pinned in sql/99_smoke.sql.
 -- Convention: `-- name: <id>` above a statement returning ONE row ONE column.
 --
 -- Run through `make eval` (evals/run_eval.py). Every row must reproduce on a fresh bootstrap.

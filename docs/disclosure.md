@@ -39,7 +39,7 @@ What that means in practice, and what it does not:
 * every number in this repository is **computed by SereneDB**, never by a model. The assistants wrote
   SQL and Python; the figures come from the database and are pinned by `make check` and `make eval`;
 * the assistants' output was reviewed and verified by the other team member: Person A's figures were
-  recomputed independently (76 of 76 checks, without using his views) and Person B's tools were run
+  recomputed independently (76 of 76 checks, without using those views) and Person B's tools were run
   against Person A's numbers through the real MCP surface;
 * the agents did **not** write the analysis claims: the findings in `PLAN.md` §9 and the demo come
   from measured queries, and the two claims that did not survive measurement are recorded in
@@ -61,8 +61,10 @@ the brief does not supply one — and it is documented as our construction, not 
 
 ## A note on the numbers people ask about
 
-Two figures circulated during the build that we could not reproduce, and we say so rather than
-repeat them: the brief's "twelve labelled alert categories" (BGL's category column has 42 distinct
-values, 41 plus `-`) and its "five severity levels" (we measure six, no `Kill` in the derived set).
-Both were raised with the challenge owners at the Q&A. The brief's "44% of all alert lines" figure
-was ours to correct, and `PLAN.md` now carries the measured version.
+Two figures in the brief we could not reproduce, and we say so rather than repeat them: its
+"twelve labelled alert categories" (BGL's category column has 42 distinct values, 41 plus `-`) and
+its "five severity levels" (we measure six, no `Kill` in the derived set). **Both were raised with
+the challenge owners at the Q&A (17 Oct); their answer was that the data is authoritative — we use
+the full measured sets, with no mapping.** One figure of ours was wrong on the way here: an earlier
+"39% of alert lines" for the one-node burst; the measured share is **44%** (152,183 of 348,460
+alert lines), and that is the version `PLAN.md` carries.

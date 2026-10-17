@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "exhibit": {
+      "command": "uv",
+      "args": ["run", "exhibit-mcp"]
+    },
     "serenedb-docs": {
       "type": "http",
       "url": "https://api.serenedb.com/mcp"

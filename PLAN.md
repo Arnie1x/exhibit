@@ -271,7 +271,7 @@ Optional four, only after the MVP gate: `trace_context`, `drop_index` / `create_
 **Status 17 Oct — all ten are implemented and checked.** Three shipped in Stage 2 (`describe_data`,
 `search_logs`, `count_events`: persona-aware, every statement under `SET ROLE`); the other seven in
 Stage 3 on the `stage-3-tools` branch, plus `verify_evidence`, which re-runs any stored answer and
-compares it hash for hash. `make check` now runs **80 acceptance checks** written against measured
+compares it hash for hash. `make check` now runs **101 acceptance checks** written against measured
 numbers rather than shapes — `episodes` must return 19,250 at a five-minute gap *and* equal the value
 of the prebuilt view it recomputes; `top_signatures` ranked three ways must return **three different
 problems** (it does); `trend` must end at the corpus's own last day. Every answer — **including every
@@ -345,7 +345,7 @@ evidence:
   while **all of Lustre's 3,667 are over by mid-September** (3 weeks, none in the last 9). One is a
   wound that healed; the other is still bleeding, and volume rankings show neither.
 - *manager*: 348,460 alert lines → 19,250 incidents → ranked by blast radius and persistence, with `Not established` for cost. The ranking inverts the volume story: `data TLB error interrupt`,
-  first by lines, is **12th by blast radius** and 23rd by blast radius + persistence, while
+  first by lines, is **12th by blast radius** and also **12th on the combined measure** (rank sum 23), while
   `rts panic! - stopping execution` (**3,394 nodes on 124 days**) is first on the combined measure
   — a slow burn across the fleet beating a six-hour fire on one machine. The recommendation is a
   statement about *what to fix first and why*, not a count.
@@ -394,8 +394,8 @@ tools" is team-stage 3; its "Stage 6 — Bonus tracks" is not team-stage 6).
 | **Sat 18:00–20:00** | **Per-team Q&A with the challenge owners** (10 min slot) | Answers written down and folded back into this plan; if a rubric reading changes, note it tonight | ✓ done — answers folded into §13 |
 | **Sat 20:00–24:00** | Stage 4: the three roles + answer contract + numeric lint + manager lint | Same question, three answers, three evidence paths — visibly different, not longer | ✓ done **early** (17 Oct) — §9b roles/grants and the contract came with stages 2–3; `lint_answer` closed the lints. Gate shown by `make demo`'s per-role sections |
 | **Sun 00:00–08:00** | **Sleep. Non-negotiable.** The plan assumes it | — | — |
-| **Sun 08:00–12:00** | Stage 5: validation (hidden ground truth), the evaluation harness, fix what it finds | Eval score printed; every number in the README reproducible | ✓ done **early** (17 Oct) — ground truth was already in (`scripts/validate_ground_truth.py`); `make eval` → 15/15, and it found three seam defects which are fixed |
-| **Sun 12:00–15:00** | Stage 6: README, `make clean-check`, slides, the disclosure section | A clean clone runs `make bootstrap smoke` on a machine that has never seen the project | **next** — README ✓, `make clean-check` ✓ (fresh clones pass), `docs/disclosure.md` ✓; **slides left**, and the fresh-machine run is Adnan's box |
+| **Sun 08:00–12:00** | Stage 5: validation (hidden ground truth), the evaluation harness, fix what it finds | Eval score printed; every number in the README reproducible | ✓ done (17 Oct) — `make eval` → 15/15, and it found three seam defects (fixed). The ground-truth script was cited but missing; committed in round 4: `make validate` → 13/13 |
+| **Sun 12:00–15:00** | Stage 6: README, `make clean-check`, slides, the disclosure section | A clean clone runs `make bootstrap smoke` on a machine that has never seen the project | ✓ 3 of 4 — README, `make clean-check` (now genuinely passes end to end), disclosure + LICENSE ✓; the fresh-machine run is done (Adnan's Windows box: 101/101 + client PASS + eval 15/15). The deck exists (13 slides, private) — **export to PDF + share is the one open item** |
 | **Sun 15:00–19:00** | Stage 7: **record the video** (5 min, per the ceremony notes — see §13 Q3), rehearse twice | Video plays end to end without a stall and shows a real query returning a real number | — |
 | **Sun 19:00–22:00** | Stage 8: submission checklist, flip the repo public, upload | §15 complete | — |
 | **Sun 22:00–23:59** | Buffer. Something will go wrong; this is the hour it goes wrong in | — | — |
@@ -477,9 +477,9 @@ everyone in the room want to help you.
 
 ## 14. Bonus ladder — priority ordered, probe-gated
 
-1. **MCP-server packaging** (2 h) — four connection paths, generated tool docs, a `.mcp.json`. Judged separately as *Best MCP Server*; free upside on the main score, because it is also how the judges experience the main deliverable.
-2. **Evaluation harness** (2 h) — 12 questions, tool-selection accuracy and numeric accuracy scored against golden SQL. This is how Stage 5's 25% gets a number instead of an adjective. Arnie's lane.
-3. **Huge-datasets bench** (2 h) — **the documented mechanism is a view over remote Parquet with an inverted index on the view, refreshed with `REINDEX INDEX`**, and only the index is local. Start with a one-minute slice (0.8 s to read), measure rows/second of build, extrapolate, and **report how much data you actually queried and how long it took** — the organiser Q&A asks for exactly that. Nothing must be downloaded.
+1. **MCP-server packaging** (2 h) — four connection paths, generated tool docs, a `.mcp.json`. Judged separately as *Best MCP Server*; free upside on the main score, because it is also how the judges experience the main deliverable. **Partly done (round 5):** `.mcp.json` now registers `exhibit` itself (`uv run exhibit-mcp`); the connection paths and tool docs remain.
+2. **Evaluation harness** (2 h) — 12 questions, tool-selection accuracy and numeric accuracy scored against golden SQL. This is how Stage 5's 25% gets a number instead of an adjective. Arnie's lane. **Done:** `make eval` → 15/15, 19 figures, 6 refusals.
+3. **Huge-datasets bench** (2 h) — **the documented mechanism is a view over remote Parquet with an inverted index on the view, refreshed with `REINDEX INDEX`**, and only the index is local. Start with a one-minute slice (0.8 s to read), measure rows/second of build, extrapolate, and **report how much data you actually queried and how long it took** — the organiser Q&A asks for exactly that. Nothing must be downloaded. **Done (round 4):** 1,000,000,000 rows / 41 GB read in place, footer ~2 s; a 10 s slice (5,275,597 rows) indexes in 60 s and searches in 13 ms; `SET enable_external_file_cache = false` is required before any remote read (with the default on, big filtered reads SIGSEGV the server). Numbers: `bench/README.md`; ladder: `make bench-ladder`.
 4. **Workspace indexes — DO NOT BUDGET TIME YET.** Measured today: a partial inverted index shows **no effect** — naming it returns the full count (121,498) where the same predicate against the table returns 0, the planner does not select it (`EXPLAIN` → `Index: bgl`, `ts` as a *Column Filter*), and there is no timing difference (4.19 ms vs 3.99 ms). Re-probe first; if it still shows nothing, say so plainly in the video. The brief's bonus explicitly welcomes the negative result, and a team that measured and reported "this did not pay off" looks better than a team that claims a speedup it cannot show.
 5. **`investigations/` write-up** (1 h) — anything real we found that did not fit the demo.
 

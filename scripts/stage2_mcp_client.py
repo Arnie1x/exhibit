@@ -45,7 +45,7 @@ async def main() -> int:
             print(f"tools: {', '.join(names)}")
             expected = ("describe_data", "search_logs", "count_events", "episodes",
                         "top_signatures", "trend", "durations", "ownership", "nearby_events",
-                        "what_changed", "verify_evidence")
+                        "what_changed", "verify_evidence", "lint_answer")
             for name in expected:
                 assert name in names, f"tool {name} is missing"
             print(f"all {len(expected)} tools are exposed")
