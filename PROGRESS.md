@@ -1,6 +1,6 @@
 # PROGRESS — Adnan's lane
 
-Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second machine) · Status: two-hour list in progress
+Deadline: Sun 18 Oct, 23:59 · Current team stage: 3 (Adnan's part done Sat 13:05, ahead of the 14:00–17:00 window) · Status: Q&A prep next; Arnie's Stage 3 tools pending
 
 ## Stage log (team plan §11)
 
@@ -8,7 +8,7 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
 | --- | --- | --- | --- |
 | 0–1 Probe, data layer | Done by Sat 12:00 | Re-probe, verify headline numbers, port `sql/50_roles.sql`, extend `os_sig` | Done Sat 13:30 on a second machine: gate met (4,747,963 / 207,812; 348,460 → 19,250); burst corrected to 152,183; partial-index row corrected; roles and W2 views in |
 | 2 MCP skeleton | Sat 12:00–14:00 | Golden SQL for the first three tools | |
-| 3 W1/W2 tools | Sat 14:00–17:00 | Views for `top_signatures`, `trend`, `episodes`, `durations`, `ownership` | |
+| 3 W1/W2 tools | Sat 14:00–17:00 | Views for `top_signatures`, `trend`, `episodes`, `durations`, `ownership` | SQL side done Sat 13:05: 3 views, `sql/90_queries.sql` (`make demo`) prints W1 and W2 per role under `SET ROLE`, every number computed and independently verified; 3 §9 statements wrong, corrections handed to Arnie. Tool side (Arnie) pending |
 | Q&A | Sat 17:00–20:00 | Questions from team plan §13; answers into `PLAN.md` | |
 | 4 Roles, contract, lints | Sat 20:00–24:00 | Role views and grants | |
 | Sleep | Sun 00:00–08:00 | OTel bench in the background | |
@@ -24,7 +24,7 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
 | An answer for each role with relevant evidence, fitting detail and a role-suited next step | ☐ | |
 | Retrieval and aggregation used on BGL and on OpenStack | ☐ | |
 | At least one answer uses full-text search | ☐ | |
-| At least one whole-corpus aggregation (per dataset or team), with scope and filters stated | ☐ | |
+| At least one whole-corpus aggregation (per dataset or team), with scope and filters stated | ◐ SQL done, tool pending | `sql/90_queries.sql` W1 L1 (`ownership_coverage`, per team) and L3 (lines vs incidents per team), `logs/demo-pass3.log` |
 | Practical recommendations: what to check or fix first, and why | ☐ | |
 | Tools with clear descriptions of purpose, inputs and outputs | ☐ | |
 | Executed queries and results shown; hypotheses and limitations labelled; numeric lint passes | ☐ | |
@@ -32,12 +32,12 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
 | Schema, loading scripts and ownership table in the repo (organizers' Q&A) | ☐ | |
 | Public repo, MIT licence, README covering workflow, setup, running and limitations | ☐ | |
 | Disclosure section: models, tools, what was built in the window | ☐ | |
-| Worked investigations W1 and W2 with search and aggregation, and what the data does and does not establish | ☐ | |
+| Worked investigations W1 and W2 with search and aggregation, and what the data does and does not establish | ◐ SQL path done, tool and answer path pending | `make demo` = `sql/90_queries.sql`: W1 search (`@@ ts_phrase` on `bgl_idx`) + aggregation, W2 aggregation, "Not established" lines per manager step |
 | Video of at most 5 minutes plus a 3-minute cut, and slides | ☐ | |
 | SereneDB starred on GitHub; docs MCP connected | ☐ | |
 | Optional: workspace index (re-probed; result reported either way) | ☐ | |
 | Optional: huge data (OTel Parquet) with data volume, times and machine | ☐ | |
-| Bonus: role scope enforced by the database | ☐ | |
+| Bonus: role scope enforced by the database | ☑ | `sql/50_roles.sql` scope proof (`logs/roles-s3.log`: 3 roles read their views, 6 statements refused); `make demo` runs every step under its role with `SET ROLE` |
 | Bonus: logs correlated with traces or metrics | ☐ | |
 
 ## Done
@@ -89,11 +89,31 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
   | Manager scope | `mgr_os_risk` (5 problems, 68 incidents) and `mgr_os_lifecycle` carry no text, no logger, no instance ID |
   | Independent check | `sql-verifier`, fresh SQL on the raw Parquet and `os_ev`: all six W2 claims MATCH (`tests/golden/w2_numbers.sql`, 46 rows `t`); shortest gap between tracebacks 58m44.9s; image median over 2,065 instances |
 
+- **Stage 3, SQL behind the W1/W2 tools (Sat 17 Oct, 12:40–13:05).** `sql/30_views.sql` gains `bgl_signature_stats` (every ranking factor per alert signature: lines, 5-min incidents, nodes, midplanes, peak nodes per incident, active days, longest incident, loudest node and its share, blast-radius and persistence ranks), `bgl_episode_sensitivity` (incidents at 1 / 5 / 60 min, per midplane and global) and `ownership_coverage` (lines and problem lines per team and matching key, both datasets). `mgr_bgl_risk` is now `bgl_signature_stats` without text or node ID, plus `top_node_pct` and the two ranks. New `sql/90_queries.sql` (`make demo`): W1 and W2, engineer → lead → manager, each step named after its tool and run under its role with `SET ROLE`, every number computed; the label check is a separate validation block. `sql-verifier` recomputed all 15 claim groups on the raw Parquet without the views: `tests/golden/stage3_numbers.sql`, 76 rows `t`, 0 `f`, twice (`logs/golden-stage3.log`). Found on the way: password-less roles cannot log in, and the Windows host needs a password for `postgres` (`docs/capabilities.md` §6).
+
+  | Gate (team plan §11 Stage 3, Adnan's part) | Command or proof | Result | Verdict |
+  | --- | --- | --- | --- |
+  | `make demo` prints both investigations | `sql/90_queries.sql` through the container's psql (no `make` here), `logs/s3-demo-1.log` | W1 and W2, 3 roles each, exit 0, 2.4 s | PASS |
+  | W1 engineer: DTLB 152,734 lines; one node | demo E1–E3 | 152,734 by signature and by `@@ ts_phrase`; 99.64% from one node; 152,183 alert lines on 1 node in 6h22m (§9 still says 136,209 / 5h43m: handoff) | PASS, §9 text wrong |
+  | W1 lead: 91% compute-platform; ciod and Lustre lead by episodes | demo L1–L4 | 91.09% of lines but **81.61% of alert lines**; Lustre 3,667 and ciod 3,638 incidents, at most 8 nodes per incident (1,024 overall) | PASS, §9 text wrong (handoff) |
+  | W1 manager: 348,460 → 19,250, ranked by blast radius and persistence, cost not established | demo M1–M3 | 348,460 → 19,250 (18.1 lines per incident); `rts panic` first, DTLB 12th; "Not established" printed | PASS |
+  | §8: 132 / 117 / 57 for one signature | demo E4 | DTLB 132 / 117 / 57 (midplane), 37 / 37 / 16 (global) | PASS |
+  | W2 engineer: latency identical | demo E1 | mean 0.2340 vs 0.2341 s, p95 0.3771 vs 0.3826 | PASS |
+  | W2 lead: 4 labelled at positions 1–4 | demo L1 + validation block | 50.72 / 41.81 / 31.27 / 29.46 s, all labelled; position 5 (26.69 s) unlabelled | PASS |
+  | W2 manager: 8 imagecache incidents; CRITICAL auth | demo M1 | 8 incidents = 8 tracebacks (184 lines); 2 CRITICAL token-validation incidents, 6 lines (§9 "six lines of CRITICAL" wrong: handoff) | PASS, §9 text wrong |
+  | Every demo number independently verified | `tests/golden/stage3_numbers.sql` + `tests/golden/w2_numbers.sql` | 76 / 76 and 46 / 46 `t` | PASS |
+  | `make bootstrap smoke` green, idempotent | full rebuild ×3 (`logs/s3-*-{1,2,3}.log`) | 14.4 s; smoke, roles and demo output identical across rebuilds; 4,747,963 / 207,812; 348,460 → 19,250 → 1,377 | PASS |
+  | Role scope holds | `sql/50_roles.sql` scope proof | lead reads 19,250 / 1,377 from `bgl_episode_sensitivity`; manager refused `bgl_signature_stats` (and 3 others), lead refused 2 | PASS |
+
 ## Decisions
 
 - The team plan governs schedule, split and stage numbers; `docs/build-plan.md` is the design reference.
 - To settle with Arnie: manager answers name affected components and owning teams (the brief asks for them), never raw log text. PLAN.md §7 already reads this way ("affected component family and owning team", never node IDs or logger names); the role views follow it.
 - The probe creates objects only in `exhibit_probe`, never in `postgres` or `exhibit_scratch` (left for hand tests and `serenedb-expert`).
+- Stage 3 ranking definitions (in `bgl_signature_stats`, used by `make demo`): blast radius = distinct nodes affected; persistence = distinct active days; both as dense ranks over the 100 alert signatures; the manager order is `rank_blast_radius + rank_persistence`, ties by blast radius then `signature_id`. It ranks measured factors and is labelled "not an impact estimate". Arnie's `rank_by` may choose differently; then the demo changes with it.
+- Every ranking breaks ties on `signature_id` (or `instance_id`), so a rerun gives the same rows and the evidence hash holds.
+- The label check sits in `make demo` as a separate "VALIDATION (outside the agent)" block, run as `postgres`; no role view or tool reads the labels. Stage 5 moves it into the ground-truth script.
+- Trend for the lead is incidents per week (gap 5 min), not lines, with zero weeks filled by `generate_series` before `regr_slope`; "recent" anchors on the dataset's last week.
 
 ## Measured numbers
 
@@ -106,6 +126,10 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
 | `statement_timeout` | accepted, **not enforced** (warning; `SET … '1ms'` then a 200 ms query completes) | `make probe` §8 | Sat 12:20 |
 | Partial index build | 239–315 ms (424,614 rows) vs 1,163–1,248 ms full (4,747,963), three runs | `make probe` §5 | Sat 12:30 |
 | Partial index query | 1.60–1.84 ms named vs 1.96–2.29 ms full + window, median of 21, three runs | `make probe` §5 | Sat 12:30 |
+| Bootstrap (derive → index → views → roles) | 14.4 s wall clock, three identical rebuilds | `time ( docker exec -i serenedb psql … -f - < sql/10_derive.sql && … 20 … 30 … 50 )` | Sat 13:00 |
+| `make demo` | 2.4 s, 243 lines, identical across runs and rebuilds | `docker exec -i serenedb psql -h 127.0.0.1 -p 7890 -U postgres -f - < sql/90_queries.sql` | Sat 13:00 |
+| Stage 3 golden | 76 / 76 rows `t`, two runs | `tests/golden/stage3_numbers.sql` → `logs/golden-stage3.log` | Sat 12:58 |
+| Ranking inversion | DTLB first by lines (152,734), 117 incidents, 12th by blast radius + persistence; `rts panic` first (3,394 nodes, 124 days) | `make demo` W1 E1, M2 | Sat 12:50 |
 | BGL clock | `ts` = US Pacific wall clock (epoch − 7 h to 2005-10-30 01:18, − 8 h after); 49 rows in the repeated hour, 0 alerts | `docs/data-notes.md` | Sat 12:35 |
 
 ## Background jobs
@@ -130,6 +154,24 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
 - **Ownership trap worth a demo line:** the imagecache traceback is logged by `oslo_service.periodic_task`, so logger-first precedence gives it to `platform-services`, while the imagecache warnings go to `image-service`. One bug, two teams. Your lead answer should say so; changing `data/ownership.csv` is our call together.
   - Your evidence ledger: every role needs `SELECT` / `INSERT` on `exhibit_evidence` once it exists. Add the grants to `sql/50_roles.sql` (one table per GRANT statement) or tell me the table name and I will.
   - `make bootstrap` now runs `roles` last; `sql/30_views.sql`'s `DROP … CASCADE` removes the role views, so never run views without roles after it.
+- **Stage 3: which relation backs which tool** (all in `sql/30_views.sql` / `sql/50_roles.sql`; `make demo` runs each one, labelled with the tool name; the numbers to match are in `logs/demo-pass3.log`):
+
+  | Tool | Engineer / lead | Manager | Order or parameter |
+  | --- | --- | --- | --- |
+  | `top_signatures` BGL | `bgl_signature_stats` (signature text, `top_node`) | `mgr_bgl_risk` (no text, no node ID; adds `top_node_pct`, `rank_blast_radius`, `rank_persistence`) | lines → `alert_lines DESC`; episodes → `episodes_5min DESC`; nodes → `nodes_affected DESC`; blast radius → `rank_blast_radius`; persistence → `rank_persistence`; risk → `rank_blast_radius + rank_persistence, rank_blast_radius, signature_id`. Always end with `signature_id` for a stable order |
+  | `top_signatures` OpenStack | `os_problem_incidents` | `mgr_os_risk` | `critical_lines DESC, error_lines DESC, incidents DESC` |
+  | `episodes` | `bgl_episode_sensitivity` (1 / 5 / 60 min, per midplane and global), `bgl_incident` (5 min rows) | `mgr_bgl_risk.episodes_5min` | any other gap or scope: the pattern below |
+  | `trend` | `lead_bgl_daily`, `lead_os_hourly` (lines); `bgl_incident.started` (incidents) | `mgr_rollup_daily` | weekly slope: `make demo` W1 L4 (zero weeks via `generate_series`, then `regr_slope`) |
+  | `durations` | `os_instance_durations` (rank `spawn_s DESC NULLS LAST, instance_id`), `os_latency_by_file` (`source_file = 'ALL'` = per group) | `mgr_os_lifecycle` | — |
+  | `ownership` | `ownership_coverage`, `owner_map` | `ownership_coverage` (granted: teams and counts only) | `matched_on` = the key that assigned the team; OpenStack teams can span two rows, sum them |
+
+  **Parameterised episodes** (a gap or scope the view does not hold), tested with literal values: DTLB 132 / 117 / 57 at 60 / 300 / 3,600 s per midplane, 553 / 553 / 545 per node:
+  `WITH d AS (SELECT ts - LAG(ts) OVER (PARTITION BY signature, <scope column from datasets.py> ORDER BY ts) AS gap FROM bgl_sig WHERE is_alert AND signature = %s) SELECT count(*) FILTER (WHERE gap IS NULL OR gap > %s * INTERVAL '1 second') FROM d` (gap in seconds as an int). Not tested through psycopg's binding from this box (host connections need a password, below): check that the bound int multiplies an INTERVAL without a cast error, as `ts_any` needed `::TSQUERY[]`.
+- **`datasets.py` (your branch) ranks BGL by the label.** `signature_column = "alert_category"` and `groups["signature"] = "alert_category"`, so `count_events(group_by="signature")` groups by label, which CLAUDE.md rules out (84,253 ASSERT lines sit under `-`). Suggest renaming that group `category` and taking signatures from `bgl_signature_stats` / `bgl_sig.signature`. Same on OpenStack: `signature_column = "logger"`, while problems are `os_sig.problem`.
+- **Roles cannot log in; use `SET ROLE`** (measured, `docs/capabilities.md` §6). A LOGIN role without a password is refused even over the container's loopback (`password authentication failed for user "exhibit_lead"`): SereneDB trusts only `postgres` on loopback. So `EXHIBIT_ROLE` in `db.py` has to run `SET ROLE <role>` on a `postgres` connection, not log in as the role (or the roles get passwords, which is a decision for both of us).
+- **From the Windows host, `postgres` needs a password too**: Docker Desktop forwards `127.0.0.1:7890` from the bridge, which the default HBA treats as remote (`password authentication failed for user "postgres"`). Your server will fail on my box until we pick one: `POSTGRES_PASSWORD` on first start, `ALTER ROLE postgres PASSWORD …` (with `SERENEDB_PASSWORD` from `.env`), or `SET hba` trusting the bridge. Security setting, not changed by me.
+- **PLAN.md §9 corrections (yours; verified, `tests/golden/stage3_numbers.sql`)**: W1 lead "91% of alert volume belongs to `compute-platform`" → "91% of all BGL lines, but 82% of alert lines and 52% of incidents; workload-runtime (ciod) has 48% of incidents". "thousands of small incidents across eight nodes" → "thousands of small incidents, each touching at most 8 nodes (1,024 I/O nodes overall)". W1 manager: the ranked list exists now, and DTLB, first by lines, is 12th (`rts panic`, 3,394 nodes on 124 days, is first). §8 "132 / 117 / 57" is right. New for W1 lead: by weekly trend, Lustre's incidents are all in 3 weeks and none in the last 9; ciod's 3,638 are all in the last 9 (slope +14.8 a week).
+- **Makefile merge**: your branch has `bootstrap: derive index views`; main has `… views roles`. Keep `roles` last when merging: `sql/30_views.sql`'s CASCADE drops the role views, and `make demo` fails at its first `SET ROLE` read without them.
 - **`statement_timeout` is not enforced by the server** (it warns and runs on). Rule 9's 30 s limit on tool paths has to be enforced in your code: e.g. a timer that calls `conn.cancel()`, or run the query in a thread and cancel on timeout. Do not rely on `SET statement_timeout`.
 
 ## Open issues
@@ -137,7 +179,11 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
 - README's `APPSEV` "7,036 episodes" is per **alert category** × midplane, not per signature like the rest of that paragraph (now labelled; checked: 7,036 by category × midplane, 7,165 summed over its 5 signatures).
 - On a search table the partial-index "rows outside" count came out 87,443 in the probe and 87,442 by hand (the complement is 87,442). Pattern A only, not used; recorded, not chased.
 
+- The Makefile's psql targets pass host paths (`-f sql/…`), so they only work with a host `psql`. With `PSQL='docker exec -i serenedb psql …'` (this box, and any judge without psql) they need `< sql/…` instead. Stage 6 (`make clean-check`) item; not changed now because Arnie's branch edits the same file.
+- No `make` on this Windows box: Stage 3's gate ran each Makefile recipe through `docker exec -i serenedb psql -h 127.0.0.1 -p 7890 -U postgres` with the file on stdin (commands in "Measured numbers").
+
 ## Next
 
-- Team stage 3 (Sat 14:00–17:00): views and golden SQL behind `top_signatures`, `trend`, `episodes`, `durations`, `ownership`; write `sql/90_queries.sql` so `make demo` prints W1 and W2 (the Makefile names it; it does not exist yet). W2's numbers are already in `make smoke` §6b–§7a.
-- Before the Q&A: agree with Arnie on the PLAN.md burst correction and on the imagecache ownership split.
+- Before the Q&A (Sat 17:00): agree with Arnie on the PLAN.md §9 corrections (burst 152,183; 82% of alert lines; 8 nodes per incident), the imagecache ownership split, and how roles connect (`SET ROLE`, host password).
+- When Arnie's Stage 3 tools land: run each tool once per demo step and compare it with `logs/demo-pass3.log` (same numbers, same order).
+- Stage 4 (Sat 20:00–24:00): evidence-ledger grants in `sql/50_roles.sql` once the table name is known.

@@ -73,6 +73,34 @@ Parquet and on `bgl_ev`; re-run with `tests/golden/headline_numbers.sql`):
 | The old figure 136,209 | the same burst with `ts < 23:00:00` (15,974 lines after 23:00 left out) |
 | Fleet days | 2005-06-13: 17,409 lines on 16,644 nodes · 2005-06-14: 49,154 lines on 22,529 nodes |
 
+**Ranking factors per alert signature** (17 Oct, `bgl_signature_stats`, printed by `make demo`;
+independent SQL in `tests/golden/stage3_numbers.sql`). Each ranking puts a different problem first:
+
+| Rank by | First | Its numbers | Where the loudest (DTLB) lands |
+|---|---|---|---|
+| Alert lines | `data TLB error interrupt` (KERNDTLB) | 152,734 lines, 117 incidents (5 min, midplane), 541 nodes, **99.64% from one node** | 1 |
+| Incidents, 5 min, signature × midplane | `Lustre mount FAILED : bglio{n} : point /p/gb{n}` (KERNMNTF) | 3,667 incidents, 26,426 lines, 1,024 I/O nodes, at most 8 nodes per incident, 12 active days | 117 incidents |
+| Blast radius + persistence (sum of the two dense ranks) | `rts panic! - stopping execution` (KERNRTSP) | 3,394 nodes, 124 active days, 308 incidents, 3,983 lines | 12th (541 nodes, 11 days) |
+
+- **"Across eight nodes" means per incident.** Lustre and the ciod signatures peak at 8 nodes in one
+  incident but reach 1,024 nodes on 128 midplanes over the corpus (8 I/O nodes per midplane).
+- **Team split** (`ownership_coverage`): compute-platform holds 91.09% of all BGL lines but 81.61% of
+  alert lines and 51.70% of incidents; workload-runtime holds 18.32% of alert lines and 48.00% of
+  incidents (9,240 of 19,250), almost all of them ciod.
+- **Trend** (weekly incidents, 5 min, 32 weeks from Monday 2005-05-30, `regr_slope` with zero weeks
+  included): Lustre's 3,667 incidents fall in 3 weeks (peak 1,872) and none in the last 9; the top
+  ciod signature's 3,638 incidents all fall in the last 9 weeks (slope +14.806 per week), so ciod is
+  the one still active when the data ends. The window matters for one figure: `rts: kernel terminated`
+  has 10 incidents in the last 9 weeks, 6 in the last 8.
+- **Interpolation matters** for two printed values: abnormal-file latency p99 is 0.5092 and abnormal
+  spawn p95 is 21.10 under `quantile_cont` (linear); `quantile_disc` gives 0.5093 and 21.19. State it.
+- **Ties**: three nodes have 3 DTLB phrase matches each, and rank sums tie at 17 and 18 in the manager
+  order; the demo breaks every tie on the ID (node, `signature_id`, `instance_id`), and no stated
+  position depends on the tie-break.
+- **Gap sensitivity** (`bgl_episode_sensitivity`): DTLB 132 / 117 / 57 incidents at 1 / 5 / 60 min
+  per midplane, 37 / 37 / 16 globally; Lustre 3,677 / 3,667 / 2,085. At node scope DTLB is 553 / 553 /
+  545, about one incident per node.
+
 BGL severity distribution: INFO 3,735,823 · FATAL 855,501 · ERROR 112,355 · WARNING 23,357 ·
 SEVERE 19,213 · FAILURE 1,714. **There is no `Kill` level in the derived data**, despite it
 appearing in some descriptions of the corpus.

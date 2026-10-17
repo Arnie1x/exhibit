@@ -22,8 +22,10 @@
 --                     category, an OpenStack problem is our label from sql/30_views.sql), no node
 --                     IDs, no logger names, no instance IDs.
 --
--- Roles are LOGIN without a password: the server runs with trust auth on 127.0.0.1 only
--- (CLAUDE.md rule 10). Never put a password in this file.
+-- Roles are LOGIN without a password, so they cannot log in on their own: SereneDB trusts only
+-- postgres on loopback and refuses a password-less role everywhere (docs/capabilities.md §6).
+-- Connect as postgres and SET ROLE exhibit_<role>, as the scope proof below and
+-- sql/90_queries.sql do. Never put a password in this file.
 --
 -- Run after sql/30_views.sql, whose DROP ... CASCADE removes these views (make bootstrap does):
 --   psql -h 127.0.0.1 -p 7890 -U postgres -f sql/50_roles.sql
