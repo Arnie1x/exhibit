@@ -1,6 +1,6 @@
 # KICKOFF — joining the team build
 
-The team plan (`PLAN.md`, Arnie, Sat 10:30) runs the build, and Stages 0–1 are already done: the repo parses, derives, indexes and measures. This kit adds Claude Code rules, commands and subagents for Adnan's lane (data, views, roles SQL, verification, bench, ground truth).
+The team plan (`PLAN.md`, Arnie, Sat 10:30) runs the build, and Stages 0–1 are already done: the repo parses, derives, indexes and measures. This kit adds coding-agent rules, commands and subagents for Adnan's lane (data, views, roles SQL, verification, bench, ground truth).
 
 ## Install the kit (about 5 minutes)
 
@@ -11,7 +11,7 @@ The team plan (`PLAN.md`, Arnie, Sat 10:30) runs the build, and Stages 0–1 are
 - [ ] SereneDB runs from the pinned image: `docker run -d --name serenedb -p 127.0.0.1:7890:7890 -v serenedb-data:/var/lib/serenedb -v "$PWD/data":/data serenedb/serenedb:26.09.1.3`. Or use the team box over Tailscale (address in `PLAN.md` §3).
 - [ ] `make bootstrap smoke` prints 4,747,963 / 207,812 and 348,460 → 19,250.
 - [ ] Star SereneDB on GitHub (a listed prerequisite).
-- [ ] Commit: `chore: add Claude Code kit for the data lane`.
+- [ ] Commit: `chore: add the coding-agent kit for the data lane`.
 
 ## Clock (team plan §11)
 
@@ -49,7 +49,7 @@ After each item print an acceptance table, update PROGRESS.md, and leave Arnie a
 /clear
 /stage 3                        # team stage numbers; Shift+Tab into plan mode first to approve the task list
 /stage 3 fix: <what failed>     # when a gate check fails
-/stage 5 auto                   # no approval stop (start Claude Code with --permission-mode acceptEdits for unattended runs)
+/stage 5 auto                   # no approval stop (start the agent in its accept-edits permission mode for unattended runs)
 /checkpoint <summary>           # commit + PROGRESS.md + requirements tracker
 /verify <file or folder>        # re-derive every number with independent SQL
 /judge                          # after Stage 3, after Stage 5, before submission

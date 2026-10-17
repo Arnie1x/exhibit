@@ -42,5 +42,5 @@ logs/
 *.parquet
 # Node (MCP Inspector, .mcpb tooling)
 # Editors and OS
-# Personal Claude Code settings (the shared ones in .claude/settings.json stay)
+# Personal agent settings (the shared ones in .claude/settings.json stay)
 .claude/settings.local.json

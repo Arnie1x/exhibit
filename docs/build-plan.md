@@ -56,16 +56,16 @@ Arnie's team plan ("Logging off Early", 17 Oct 10:30) is now the operating plan:
 1. The team plan keeps component names out of manager answers, but the brief tells managers to use "measured frequency and affected components". Keep raw log text out of the manager view, but name the affected components and owning teams.
 2. `validate` must stay a script the agent cannot call (team plan §9), not the optional tool its §7 lists.
 
-## 1. How to run this plan with Claude Code
+## 1. How to run this plan with a coding agent
 
-Claude Code works from four repo files: the team's `PLAN.md` (schedule, split, measured numbers; see Section 0), `docs/build-plan.md` (this doc, exported as Markdown: contracts, SQL, verification), `CLAUDE.md` (rules, stack, SereneDB facts) and the kit's `/stage N` command. Nothing here is pre-written code, so all code is created inside the hackathon window.
+The coding agent works from four repo files: the team's `PLAN.md` (schedule, split, measured numbers; see Section 0), `docs/build-plan.md` (this doc, exported as Markdown: contracts, SQL, verification), `CLAUDE.md` (rules, stack, SereneDB facts) and the kit's `/stage N` command. Nothing here is pre-written code, so all code is created inside the hackathon window.
 
 **Before H0 (tonight, about 20 minutes)**
 
 1. Ask the organizers for the exact submission deadline and format. Their Q&A of 17 Oct settled the rest: there is no shared instance and no supplied loader, schema or ownership table. Each team runs SereneDB locally in Docker (no credentials by default) and ships its own schema, loading scripts and ownership table in the repo.
 2. The team repo exists (private until Stage 8). Unzip the kit at its root without overwriting anything: this doc lands as `docs/build-plan.md`, and if the repo already has `CLAUDE.md`, `.mcp.json` or `.gitignore`, merge ours into them. Re-export this doc after any edit here.
 3. Install: Python 3.11+, `uv`, `psql`, Docker, Node 18+ (for MCP Inspector and the optional `.mcpb` bundle), Claude Desktop (for the demo).
-4. Connect the SereneDB docs MCP server to Claude Code with the organizers' guide. The kit's `.mcp.json` already declares it (`https://api.serenedb.com/mcp`): approve it when Claude Code first starts in the repo, then check with `/mcp`. To add it for every project instead: `claude mcp add --scope user --transport http serenedb-docs https://api.serenedb.com/mcp`.
+4. Connect the SereneDB docs MCP server to the coding agent with the organizers' guide. The kit's `.mcp.json` already declares it (`https://api.serenedb.com/mcp`): approve it when the agent first starts in the repo, then check that it is listed.
 5. Run SereneDB locally with the team's pinned image: `docker run -d --name serenedb -p 127.0.0.1:7890:7890 -v serenedb-data:/var/lib/serenedb -v "$PWD/data":/data serenedb/serenedb:26.09.1.3`, then `psql -h 127.0.0.1 -p 7890 -U postgres`. 26.09.1.3 is the newest multi-arch tag (26.10.x is amd64-only). Publish on loopback only: auth is trust and Docker bypasses ufw; a teammate connects over Tailscale, never the public IP.
 
 **Operating loop for every stage**
@@ -90,7 +90,7 @@ Claude Code works from four repo files: the team's `PLAN.md` (schedule, split, m
 | B | MCP server: tools, prompts, resources, evals, packaging | 2, 3, 4, 9d–9f |
 | C | Story: worked investigation, validation, README, slides, demo | 5, 7, 8 |
 
-Solo: run two Claude Code sessions (data + MCP) from H2 to H16, then one.
+Solo: run two agent sessions (data + MCP) from H2 to H16, then one.
 
 **Kit contents**
 
@@ -112,7 +112,7 @@ Solo: run two Claude Code sessions (data + MCP) from H2 to H16, then one.
 
 ## 2. The thesis: what wins
 
-Most of the 200+ teams will ship the same baseline with Claude Code: a loader, four SQL tools, an MCP server and three answers. We win on what a baseline cannot fake: every number is re-runnable, log lines are never confused with incidents, answers are checked against ground truth, and the tools use SereneDB features most teams will not find.
+Most of the 200+ teams will ship the same baseline with a coding agent: a loader, four SQL tools, an MCP server and three answers. We win on what a baseline cannot fake: every number is re-runnable, log lines are never confused with incidents, answers are checked against ground truth, and the tools use SereneDB features most teams will not find.
 
 **Product:** *Exhibit* — role-aware log intelligence on SereneDB. Tagline: “Every number is an exhibit: a query you can re-run.” Rename freely.
 
@@ -131,7 +131,7 @@ Most of the 200+ teams will ship the same baseline with Claude Code: a loader, f
 | 7 | One tool layer, many datasets | A dataset registry maps logical fields to physical columns; the same tools run on BGL, OpenStack and OTel Parquet. | Huge-data award, Execution |
 | 8 | Least-privilege agent roles | SereneDB has no `CREATE POLICY` yet, so per-role row and column scope is enforced with views, `GRANT` and column privileges; the MCP server connects as the role. | Row-level security bonus |
 | 9 | Measured agent quality | An eval harness runs 12 role questions headless and scores tool choice and numeric accuracy against golden SQL. | Best MCP (tool selection) |
-| 10 | Judge-friendly packaging | `.mcp.json` auto-discovery, one-line `claude mcp add`, Claude Desktop config, optional `.mcpb` bundle, streamable HTTP, and the three roles as MCP prompts (slash commands). | Execution, Best MCP |
+| 10 | Judge-friendly packaging | `.mcp.json` auto-discovery, a one-line client config, Claude Desktop config, optional `.mcpb` bundle, streamable HTTP, and the three roles as MCP prompts (slash commands). | Execution, Best MCP |
 
 **Score map**
 
@@ -164,7 +164,7 @@ The design rests on four findings: SereneDB answers search, counts and facets fr
 | `read_parquet` over `https://` and `s3://` with globs; an inverted index on a view over the reader keeps rows in the files (zero-ETL); `REINDEX INDEX` refreshes; a list of files makes the view “generic” | OTel track: view + index over remote Parquet, one glob per view | [External Data](https://serenedb.com/docs/sql/indexes/inverted/external-data), [Indexing Views](https://serenedb.com/docs/sql/indexes/inverted/views) |
 | Window functions, `WITH RECURSIVE`, `LATERAL`, `GROUPING SETS`, `ASOF JOIN`, `percentile_cont`, `regr_slope`, `date_trunc`, `date_bin`, `generate_series`, `GROUP BY ALL` | Episodes, trends, precursors and latency stats all computed in SQL | [PostgreSQL Compatibility](https://serenedb.com/docs/compatibility/core-sql-compatibility), [AsOf Join](https://serenedb.com/docs/cookbook/sql_features/asof_join) |
 | Row security policies: not supported (issue #212). `GRANT`, column privileges and `SET ROLE` are enforced; views read their sources with the owner's privileges | Per-role scope through views + `GRANT`; say so honestly | [PostgreSQL Compatibility](https://serenedb.com/docs/compatibility/core-sql-compatibility), [Privileges](https://serenedb.com/docs/security/privileges) |
-| Gotchas: no `VARCHAR(n)`; `to_timestamp` only takes epoch numbers (use `strptime` for text); `regexp_extract` returns `''` on no match; no `to_char` / `to_date`; integer division truncates as in PostgreSQL; unquoted identifiers fold to lowercase, so mixed-case Parquet columns need quotes (`"Body"`); `UUID`, `DECIMAL`, `HUGEINT` and `INTERVAL` columns cannot be indexed; `INCLUDE` columns are stored but cannot be searched | Encoded in `CLAUDE.md` so Claude Code avoids them | [PostgreSQL Compatibility](https://serenedb.com/docs/compatibility/core-sql-compatibility), [Inverted Index](https://serenedb.com/docs/sql/indexes/inverted) |
+| Gotchas: no `VARCHAR(n)`; `to_timestamp` only takes epoch numbers (use `strptime` for text); `regexp_extract` returns `''` on no match; no `to_char` / `to_date`; integer division truncates as in PostgreSQL; unquoted identifiers fold to lowercase, so mixed-case Parquet columns need quotes (`"Body"`); `UUID`, `DECIMAL`, `HUGEINT` and `INTERVAL` columns cannot be indexed; `INCLUDE` columns are stored but cannot be searched | Encoded in `CLAUDE.md` so the coding agent avoids them | [PostgreSQL Compatibility](https://serenedb.com/docs/compatibility/core-sql-compatibility), [Inverted Index](https://serenedb.com/docs/sql/indexes/inverted) |
 | SereneDB's SearchBench runs 92 search and analytics queries over the same OTel log corpus at 100M, 1B and 10B rows on a 32-vCPU, 128 GB machine | Our huge-data numbers will be read against theirs: report hardware, never claim speed records | [SearchBench repo](https://github.com/serenedb/searchbench), [Benchmarks](https://serenedb.com/docs/benchmarks) |
 
 **Datasets**
@@ -183,14 +183,14 @@ The design rests on four findings: SereneDB answers search, counts and facets fr
 | --- | --- | --- |
 | MCP Python SDK v2 is the stable line for the 2026-07-28 spec; `pip install mcp` now installs 2.x; the server class is `MCPServer` (`from mcp.server import MCPServer`); v1 lives on a branch | Pin `mcp[cli]>=2,<3` (the `cli` extra provides `mcp dev` and `mcp run`); fallback `mcp[cli]>=1.28,<2` with FastMCP if v2 blocks for more than 30 minutes | [python-sdk](https://github.com/modelcontextprotocol/python-sdk) |
 | Typed returns become `outputSchema` + `structuredContent`; the client exposes `result.structured_content`; `mcp dev` opens the Inspector; `mcp run … --transport streamable-http` serves HTTP | Pydantic return models on every tool; smoke tests through the SDK client | [python-sdk](https://github.com/modelcontextprotocol/python-sdk) |
-| The SereneDB docs site publishes its docs MCP server at `https://api.serenedb.com/mcp` | Connected to Claude Code at H0 | [Serene Docs Search](https://serenedb.com/docs/clients/serene-docs-search) |
+| The SereneDB docs site publishes its docs MCP server at `https://api.serenedb.com/mcp` | Connected to the coding agent at H0 | [Serene Docs Search](https://serenedb.com/docs/clients/serene-docs-search) |
 
 ## 4. Architecture and data model
 
 One Python package sits between Claude and SereneDB: an MCP server whose tools compile role questions into parameterised SQL, run it in SereneDB, and return small structured results plus an evidence record. All search and arithmetic happen in the database; Python only shapes results and runs statistics on already-aggregated rows.
 
 ```text
-Claude Desktop · Claude Code · claude.ai connector · headless eval runner
+Claude Desktop · CLI coding agents · claude.ai connector · headless eval runner
                      │  MCP (stdio or streamable HTTP)
                      ▼
         exhibit MCP server (src/exhibit/mcp_server.py)
@@ -216,7 +216,7 @@ Claude reaches the server over MCP; each tool call runs parameterised SQL in Ser
 | Evidence | `exhibit_evidence` table (local SQLite fallback) | One row per tool call |
 | Tools | `src/exhibit/` | Dataset registry, SQL library, tools, statistics, ledger |
 | Interface | `src/exhibit/mcp_server.py` | MCP tools, resources, prompts over stdio and streamable HTTP |
-| Clients | — | Claude Desktop, Claude Code, claude.ai remote connector, headless eval runner |
+| Clients | — | Claude Desktop, CLI coding agents, claude.ai remote connector, headless eval runner |
 
 **`bgl_ev` (one row per BGL line)**
 
@@ -310,7 +310,7 @@ Eleven read-only tools cover the three roles, plus four optional tools for works
 - **Structured output:** Pydantic return models (`outputSchema` + `structuredContent`) plus a short text rendering for clients that ignore structure.
 - **Untrusted text:** log messages come back in a `message` field and are never treated as instructions.
 
-**Loading in Claude Code.** Claude Code defers MCP tools until its tool search finds them; only tool names and server instructions load at the start. Keep the server instructions under 4,096 characters and open them with when to use Exhibit, start each description with the words a user would search for, and set `_meta["anthropic/alwaysLoad"] = true` on the eleven core tools so they load up front ([Claude Code MCP docs](https://code.claude.com/docs/en/mcp)).
+**Loading in clients with tool search.** Some MCP clients defer tools until their tool search finds them; only tool names and server instructions load at the start. Keep the server instructions under 4,096 characters and open them with when to use Exhibit, start each description with the words a user would search for, and set `_meta["anthropic/alwaysLoad"] = true` on the eleven core tools so they load up front.
 
 **Resources:** `exhibit://datasets`, `exhibit://schema/{dataset}`, `exhibit://ownership`, `exhibit://glossary/{dataset}` (top messages per alert category, derived from data, not from memory), `exhibit://evidence/{evidence_id}`, `exhibit://playbook/{role}`.
 
@@ -394,7 +394,7 @@ Stages 0–3 deliver the minimal requirements by H16; long jobs run through the 
 
 **Goal.** Everything connected, the data loading, and every SereneDB capability we rely on proven on the real instance.
 
-**Claude Code does**
+**The agent does**
 
 1. Scaffold with `uv`: `src/exhibit/`, `tests/`, `sql/`, `scripts/`, `seed/`, `docs/`, `investigations/`, `bench/`, `evals/`. Dependencies: `psycopg[binary]>=3.2`, `mcp[cli]>=2,<3`, `pydantic>=2`, `typer`, `rich`, `python-dotenv`, `pytest`, `ruff`. A `Makefile` with `setup`, `db`, `load`, `probe`, `bootstrap`, `test`, `mcp`, `inspect`, `smoke`, `eval`, `demo`, `bench`, `export`, `clean-check`. A complete `.env.example` (`SERENEDB_HOST=localhost`, `SERENEDB_PORT=7890`, `SERENEDB_USER`, `SERENEDB_PASSWORD` (empty by default), `SERENEDB_DB`, `EXHIBIT_SCHEMA`). `scripts/psql.sh` reads `.env`, exports `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD` and `PGDATABASE`, and runs `psql`.
 2. `src/exhibit/db.py`: psycopg 3 connection factory, `run(sql, params, timeout_s=30)` returning rows, columns and elapsed ms, `explain(sql, params)`, and a guard that refuses anything but `SELECT` / `WITH` / `EXPLAIN` on tool paths.
@@ -424,7 +424,7 @@ Stages 0–3 deliver the minimal requirements by H16; long jobs run through the 
 
 **Goal.** Derived tables and inverted indexes that turn every later question into one statement.
 
-**Claude Code does**
+**The agent does**
 
 1. Profile with SQL files in `sql/profile/`, appending results to `DATA_NOTES.md`: BGL by alert category, component, level, node kind; time span and lines per day; top 20 messages per alert category; OpenStack by file, service, logger, level; instance and request counts; how many lines carry status, latency or spawn time; lines whose component has no owning team.
 2. Tokenizer trial: two or three candidate dictionaries (`split_text(case := 'lower')`, a non-alphanumeric splitter, one with `filter_tokens(max_length := 40)`). Run `ts_lexize` on 25 representative lines: node IDs, hex addresses, `ciod:` prefixes, `[instance: <uuid>]`, `req-…`, URL paths, `status: 200`. Pick one and log why.
@@ -447,13 +447,13 @@ Stages 0–3 deliver the minimal requirements by H16; long jobs run through the 
 
 **Goal.** Claude answers one question per role through our own MCP server, with evidence IDs, before the full tool suite exists.
 
-**Claude Code does**
+**The agent does**
 
 1. `datasets.py` registry for `bgl` and `openstack`.
 2. `ledger.py`: evidence rows into `exhibit_evidence` (SQLite fallback); `result_sha256` over canonical JSON of the full result.
 3. `search_logs` and `count_by` with Pydantic input and output models and the full contract from Section 5.
 4. `mcp_server.py`: `MCPServer("exhibit", instructions=...)` with both tools over stdio; entry point `uv run exhibit-mcp`.
-5. Add the server to `.mcp.json`, restart Claude Code, confirm with `/mcp`; test in the Inspector with `uv run mcp dev src/exhibit/mcp_server.py`.
+5. Add the server to `.mcp.json`, restart the client, confirm the server is listed; test in the Inspector with `uv run mcp dev src/exhibit/mcp_server.py`.
 6. Ask one rough question per role; save transcripts to `investigations/00-skeleton/`.
 
 **Acceptance**
@@ -468,14 +468,14 @@ Stages 0–3 deliver the minimal requirements by H16; long jobs run through the 
 
 **Goal.** Every minimal requirement works end to end; tag `v0.1`.
 
-**Claude Code does**
+**The agent does**
 
 1. `describe_data`, `get_context` (with run collapsing), `trend` (SQL buckets, `regr_slope`, recent-vs-baseline ratio, spikes by median absolute deviation), `find_episodes`, `rank_recurring`.
 2. `sql/40_episodes.sql`: episodes for BGL alert lines at 60 s, 300 s and 3,600 s gaps, at node and midplane scope; instance-scoped episodes for OpenStack WARNING and ERROR lines.
 3. Tool descriptions to the contract (when to use, when not, inputs with examples, outputs, limits), annotations, resources, the three role prompts.
 4. Golden tests: the `sql-verifier` subagent writes independent SQL for ten tool outputs; `pytest` compares.
 5. `scripts/mcp_smoke.py` calls every tool through the SDK client.
-6. Run the three role prompts on real questions, in Claude Desktop (from the exhibit connector's prompt list) and in Claude Code (as /mcp\_\_exhibit\_\_engineer\_investigate and so on). Fix wrong tool choices by editing descriptions, not by adding tools.
+6. Run the three role prompts on real questions, in Claude Desktop (from the exhibit connector's prompt list) and in a CLI client (as /mcp\_\_exhibit\_\_engineer\_investigate and so on). Fix wrong tool choices by editing descriptions, not by adding tools.
 7. `/judge`, then tag `v0.1`.
 
 **Acceptance (the brief's minimal requirements)**
@@ -492,7 +492,7 @@ Stages 0–3 deliver the minimal requirements by H16; long jobs run through the 
 
 **Goal.** The tools that turn descriptive answers into insight.
 
-**Claude Code does**
+**The agent does**
 
 1. `what_changed`: the significant-terms pattern from the SereneDB cookbook (foreground = focus window, background = baseline window, `min_fg` floor), plus a signature shift table (observed vs expected count per alert category).
 2. `metric_stats` for OpenStack: latency percentiles by endpoint, status and service; spawn and build distributions; create-to-start delay per instance via conditional `MIN(CASE …)`; `/servers/detail` polls per instance window; outliers by interquartile range and robust z.
@@ -513,11 +513,11 @@ Stages 0–3 deliver the minimal requirements by H16; long jobs run through the 
 
 **Goal.** One real, verified investigation shown through all three roles (method in Section 8).
 
-**Claude Code does**
+**The agent does**
 
 1. Run the story-mining queries from Section 8, score the candidates, pick one, log the decision.
 2. Fill the question bank with real values.
-3. Run the three role sessions in Claude Desktop (screenshots for slides) and headless in Claude Code for full tool-call transcripts. Headless runs start in an empty temp directory with only our server (`evals/mcp.exhibit.json` declares just `exhibit`, with an absolute `uv --directory` path), so the agent cannot fall back on the repo's `CLAUDE.md`, Bash or `psql`: `claude -p "<question>" --strict-mcp-config --mcp-config <repo>/evals/mcp.exhibit.json --allowedTools "mcp__exhibit" --disallowedTools "Bash" "Edit" "Write" "WebFetch" "WebSearch" --output-format stream-json --verbose` (check flags with `claude --help`).
+3. Run the three role sessions in Claude Desktop (screenshots for slides) and headless in a CLI agent for full tool-call transcripts. Headless runs start in an empty temp directory with only our server (`evals/mcp.exhibit.json` declares just `exhibit`, with an absolute `uv --directory` path), so the agent cannot fall back on the repo's `CLAUDE.md`, Bash or `psql`: the agent's headless mode with only that MCP config, Bash, Edit, Write and web tools disallowed, and stream-JSON output.
 4. `exhibit export --session <id> --out investigations/01-<slug>/`: per-role answer, tool-call sequence, and every evidence record (SQL, parameters, results, plan excerpt) as Markdown.
 5. `/verify` on the investigation: the subagent recomputes every number with fresh SQL; fix each mismatch.
 6. Validation section: BGL labels and the OpenStack anomaly labels against our tools, kept out of the agent's reach.
@@ -543,7 +543,7 @@ Stages 0–3 deliver the minimal requirements by H16; long jobs run through the 
 
 ### Stage 7 — Hardening and docs (H38–H44)
 
-**Claude Code does**
+**The agent does**
 
 1. Clean-checkout test: fresh clone into a temp directory, new virtualenv, fresh Docker volume, then `make setup db load bootstrap test smoke`. Fix anything that leaned on local state. The SereneDB image tag stays pinned in the Makefile so judges run the version we tested.
 2. README (structure in Section 10); `docs/tools.md` generated by `scripts/gen_tools_md.py` from the live server's tool list; `docs/architecture.md`; `docs/limitations.md`; citations.
@@ -552,7 +552,7 @@ Stages 0–3 deliver the minimal requirements by H16; long jobs run through the 
 
 **Acceptance**
 
-- [ ] A fresh Claude Code session with no context follows the README alone and gets a cited answer within 10 minutes.
+- [ ] A fresh agent session with no context follows the README alone and gets a cited answer within 10 minutes.
 - [ ] All tests green; tag `v1.0-rc`.
 
 ### Stage 8 — Demo and submission (H44–H48)
@@ -664,7 +664,7 @@ Indexing runs on our own machine; the organizers provide no extra infrastructure
 ### 9d. Eval harness (1 h)
 
 - `evals/questions.yaml`: 12 questions (four per role), each with the expected tool set and golden SQL for its key numbers.
-- Runner: headless Claude Code per question from an empty temp directory with only our server (`--strict-mcp-config --mcp-config evals/mcp.exhibit.json --allowedTools "mcp__exhibit"`, built-in tools disallowed as in Stage 5), so the scores measure our tools and not Bash; parse tool-use events from the stream-JSON output.
+- Runner: a headless coding agent per question from an empty temp directory with only our server (only `evals/mcp.exhibit.json` as its MCP config, built-in tools disallowed as in Stage 5), so the scores measure our tools and not Bash; parse tool-use events from the stream-JSON output.
 - Scores: tool selection (expected tools used, extra calls counted), numeric accuracy (golden value present within tolerance), contract (all seven contract sections; manager lint), latency and number of calls.
 - `evals/REPORT.md`, re-run after every tool-description change as a regression check.
 
@@ -678,7 +678,7 @@ Gotcha: Claude is strict about the MCP Apps handshake. The page must send `ui/in
 ### 9f. Packaging (1 h)
 
 - `.mcpb` Desktop Extension: `npx @anthropic-ai/mcpb init`, a Python server entry, `user_config` for host, port, user and a sensitive password, `mcpb pack`; test with a double-click install.
-- Streamable HTTP: `--transport streamable-http --port 8000` with a bearer-token check; Claude Code connects with `claude mcp add --transport http exhibit http://<host>:8000/mcp --header "Authorization: Bearer <token>"`. Host it publicly only if the organizers allow outside services.
+- Streamable HTTP: `--transport streamable-http --port 8000` with a bearer-token check; a client connects to `http://<host>:8000/mcp` with an `Authorization: Bearer <token>` header. Host it publicly only if the organizers allow outside services.
 
 MCPB is built around Node servers, which Claude Desktop ships a runtime for; a Python server needs Python or `uv` on the judge's machine. Check the manifest spec's server types before investing, and keep the JSON config as the primary install path.
 
@@ -702,7 +702,7 @@ The demo proves the thesis in five minutes: three roles answered with visible to
 | 3:40–4:30 | Depth slides | Lines vs episodes at three gaps; validation against labels; workspace index on the 1B-row lake with break-even; scale ladder; eval pass rates. |
 | 4:30–5:00 | Closing slide | Connect in one line, known limitations, repo link. |
 
-Prompt names differ by client: Claude Code lists them as `/mcp__exhibit__engineer_investigate` and so on; Claude Desktop lists them under the exhibit connector. Rehearse both by H16.
+Prompt names differ by client: CLI clients list them as `/mcp__exhibit__engineer_investigate` and so on; Claude Desktop lists them under the exhibit connector. Rehearse both by H16.
 
 **Backups:** a recorded video of the full run; cached transcripts in `investigations/`; the loaded and indexed Docker volume left untouched, so the demo never waits on a reload.
 
@@ -735,8 +735,8 @@ Prompt names differ by client: Claude Code lists them as `/mcp__exhibit__enginee
 
 **Four ways for judges to connect**
 
-- Claude Code in the repo: `.mcp.json` is picked up automatically; approve it when prompted.
-- Claude Code anywhere: `claude mcp add exhibit -- uv --directory /ABSOLUTE/PATH/exhibit run exhibit-mcp`.
+- A client that reads the repo's `.mcp.json`: the server is picked up automatically; approve it when prompted.
+- Any stdio MCP client: command `uv`, arguments `--directory /ABSOLUTE/PATH/exhibit run exhibit-mcp`.
 - Claude Desktop: add to `claude_desktop_config.json`, using the absolute path that `which uv` prints, because Desktop does not inherit your shell's `PATH`:
 
 ```json
@@ -1036,4 +1036,3 @@ Pages opened while preparing this plan, as of 16 October 2026.
 - [MCP Python SDK (v2)](https://github.com/modelcontextprotocol/python-sdk)
 - [Build a desktop extension with MCPB](https://claude.com/docs/connectors/building/mcpb)
 - [MCP Apps contract and lifecycle (nanohub-mcp reference)](https://nanohub-mcp.readthedocs.io/en/latest/skill/references/mcp-apps.html)
-- [Claude Code: MCP (tool search, alwaysLoad, output limits)](https://code.claude.com/docs/en/mcp) · [Claude Code CLI reference](https://code.claude.com/docs/en/cli-reference)

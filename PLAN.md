@@ -7,7 +7,7 @@
 
 > **How to use this document.** Sections 1–10 are the design; read them once, end to end.
 > Section 11–12 are what you actually do, and when. Section 13 is tonight's Q&A. Section 16
-> is the rule list for a coding agent — if you are Claude Code or Codex, read §16 and
+> is the rule list for a coding agent — if you are a coding agent, read §16 and
 > `docs/capabilities.md` first, then work through §12.
 >
 > **Every number in this document was measured on the live instance**, not estimated. Re-run
@@ -29,7 +29,7 @@ assumptions** we had both been planning around:
 Three further facts worth having:
 
 - **The docs are searchable from inside the database**: `SELECT * FROM sdb_docs.search('inverted index', 3)` returns `path, title, breadcrumb, snippet, score`. An agent can look up SereneDB's documentation **offline, over SQL**, with no network. There is also a `docs` table with its own `docs_fts` index.
-- **The docs MCP is one command** — `claude mcp add --transport http serenedb-docs https://api.serenedb.com/mcp`, or `codex mcp add serenedb-docs --url https://api.serenedb.com/mcp`. Three tools: `search_docs`, `read_section`, `docs_health`. **Do this first; it is the organisers' step zero.**
+- **The docs MCP is one command** — `codex mcp add serenedb-docs --url https://api.serenedb.com/mcp`, or the same URL in any MCP client. Three tools: `search_docs`, `read_section`, `docs_health`. **Do this first; it is the organisers' step zero.**
 - **The huge-datasets award is genuinely optional** and needs no download: index a *view* over remote Parquet (`read_parquet` over HTTP/S3/HF), and only the index is stored locally. Refresh with `REINDEX INDEX`.
 
 **Consequence for us:** the riskiest dependency in both plans — "wait for the kit, hope we can
@@ -178,7 +178,7 @@ and 3,969 of the API calls are 404s. Top-message rankings surface the poller, no
 
 ```
                           ┌─────────────────── stock MCP client ───────────────────┐
-   engineer / lead / mgr   │  Claude Code · Codex · any MCP client                  │
+   engineer / lead / mgr   │  Codex · Claude Desktop · any client                   │
         ─────────────────▶ │  question + role                                       │
                           └──────────────────────┬─────────────────────────────────┘
                                                  │ MCP (stdio; HTTP for the demo)
@@ -549,5 +549,5 @@ ownership coverage 100% · derive 14 s · index 5.6 s
 
 **Datasets:** Loghub — BGL and OpenStack, Zenodo record 8196385. **Engine:** SereneDB
 26.09.1.3 (Apache-2.0). **Disclosure:** the design and the code in this repo were produced
-during the build window with AI assistance (Hermes Agent / Claude Code as coding agents,
+during the build window with AI assistance (Hermes Agent and an Anthropic Claude assistant as coding agents,
 SereneDB docs MCP for API facts). No pre-existing code from outside the window is included.

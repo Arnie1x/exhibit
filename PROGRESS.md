@@ -417,7 +417,7 @@ halves, which is where the bugs were:**
   `make clean-check` once to be sure.
 * `docs/disclosure.md` now exists (the rules require disclosing models, tools and datasets, and the
   README pointed at a file that was not there). It states plainly which assistant wrote which lane —
-  Claude Code for yours, Hermes for mine — and that no model runs in the answer path.
+  an Anthropic Claude assistant for yours, Hermes for mine — and that no model runs in the answer path.
 
 **What I would do next, in order:** nothing is blocking the submission.
 (1) `make demo` + `make eval` on the merged branch, and the 5-minute video;
@@ -465,8 +465,8 @@ list. The W2 split holds (184 ERROR → platform-services, 3,059 warnings → im
   default even under `DESC`, unlike PostgreSQL; writing it keeps the statement portable.)
 - `scripts/stage2_mcp_client.py:46` — `expected` lists 11 tools; `lint_answer` is the 12th and is
   not asserted, so the client prints "all 11 tools are exposed" while 12 are.
-- **`.mcp.json` registers only `serenedb-docs`, not exhibit itself.** A judge who opens the repo in
-  Claude Code gets no exhibit tools until they add the server by hand. For the MCP-server award:
+- **`.mcp.json` registers only `serenedb-docs`, not exhibit itself.** A judge whose MCP client reads the
+  repo's `.mcp.json` gets no exhibit tools until they add the server by hand. For the MCP-server award:
   `"exhibit": {"command": "uv", "args": ["run", "exhibit-mcp"]}` (packaging is yours).
 - `PLAN.md:348` — "12th by blast radius and 23rd by blast radius + persistence": 23 is DTLB's rank
   **sum** (blast radius 12 + persistence 11); its **position** on the combined measure is also 12th
