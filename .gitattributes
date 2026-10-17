@@ -1,0 +1,6 @@
+# Shell scripts, the Makefile and psql scripts run under bash / make / psql even on a Windows
+# checkout, and a CRLF checkout (core.autocrlf=true, Git for Windows' default) breaks them: bash
+# reads `set -euo pipefail\r` as an invalid option. Keep them LF everywhere.
+*.sh      text eol=lf
+Makefile  text eol=lf
+*.sql     text eol=lf

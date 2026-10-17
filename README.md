@@ -61,6 +61,12 @@ any role, which is why the port is published to `127.0.0.1` only. This is a lapt
 setting; the repo never asks for it anywhere else. The server reads files from **its own**
 filesystem, hence the `-v "$PWD/data":/data` mount; remote HTTP/S3 Parquet needs no mount.
 
+**No `psql` on the host?** Every SQL target takes `PSQL`, so the client inside the container
+does the job: `make bootstrap smoke PSQL='docker exec -i serenedb psql -h 127.0.0.1 -p 7890 -U postgres'`.
+On Windows with Git Bash, also `export MSYS_NO_PATHCONV=1`, or Git Bash rewrites `/data/loghub`
+into `C:/Program Files/Git/data/loghub` before Docker sees it. The Makefile sets `PYTHONUTF8=1`,
+because a Windows console's default code page cannot print the checks' output.
+
 ## Repository map
 
 | Path | What it is | Status |
@@ -81,8 +87,13 @@ filesystem, hence the `-v "$PWD/data":/data` mount; remote HTTP/S3 Parquet needs
 | `scripts/stage2_mcp_client.py` | Stock-client acceptance check — launches the server over stdio and uses it | done |
 | `pyproject.toml` | uv project; `mcp` 2.x (`MCPServer`) + psycopg 3 | done |
 | `data/ownership.csv` | **The team-ownership table** (see below) | done |
-| `sql/90_queries.sql` | The reference investigations, as the demo runs them | Stage 3 |
+| `sql/90_queries.sql` | The reference investigations, as the demo runs them | done, `make demo` |
+| `tests/golden/` | Independent SQL (written without the views) for the headline, Stage 3, W2 and slide numbers | done, 76/76 and 46/46 rows true; 17/17 slide claims |
 | `evals/` | **The evaluation set**: 15 questions, hand-written golden SQL, one score | done, `make eval` → 15/15 |
+| `scripts/validate_ground_truth.py` | **Ground truth, outside the agent**: `anomaly_labels.txt` vs the `durations` ranking; BGL label vs text-only signatures | done, `make validate` → 13/13 |
+| `sql/70_bench.sql` | The huge-datasets bench: the 1B-row remote OTel file, and an index on a view over Parquet | done, `make bench`; results in `bench/README.md` |
+| `docs/validation.md` · `docs/disclosure.md` | What the validation establishes · models, tools, datasets, what was built in the window | done |
+| `LICENSE` | MIT | done |
 
 Nothing in this repo is aspirational: a row marked *done* has been executed on the live corpus,
 and the stage numbers refer to `PLAN.md` §11.
@@ -91,7 +102,7 @@ and the stage numbers refer to `PLAN.md` §11.
 
 ```bash
 make setup     # uv sync — creates .venv and installs mcp + psycopg
-make check     # acceptance: 94 checks against measured numbers, then a stock MCP client
+make check     # acceptance: 101 checks against measured numbers, then a stock MCP client
 make mcp       # run the server on stdio; point any MCP client at it
 ```
 
@@ -127,7 +138,7 @@ role, so scope is enforced by the engine rather than by a prompt:
 $ uv run python scripts/stage2_mcp_client.py
 connected: exhibit 0.3.0
 tools: describe_data, search_logs, count_events, episodes, top_signatures, trend, durations,
-       ownership, nearby_events, what_changed, verify_evidence
+       ownership, nearby_events, what_changed, verify_evidence, lint_answer
 
 the same question, asked as the three personas
   engineer  [E-88FE03] count_events: 4,747,963 matching rows (showing 2) | engineer@exhibit_engineer
@@ -197,6 +208,8 @@ Coverage after the join: **100%** of both corpora. BGL's `KERNEL` component alon
 make bootstrap smoke   # loads, indexes, and prints the three headline numbers
 make demo              # runs the two worked investigations end to end
 make eval              # 15 questions, every figure against hand-written golden SQL: 15/15
+make validate          # ground truth, outside the agent: 13/13 expectations
+make bench             # the 1B-row remote file: a slice indexed in place, bytes and times printed
 ```
 
 Judges can reproduce every claim from a clean checkout: the derive, the index, the
@@ -214,6 +227,30 @@ rejected with one finding per problem; the lint never rewrites the answer, becau
 edits is a lint nobody can check. It carries no evidence id of its own: the ledger holds
 re-runnable statements, and a lint is an opinion about prose.
 
+## Validation against ground truth
+
+`make validate` scores our analysis against the answer keys that ship with the corpora, from a
+script the agent cannot call (`docs/validation.md`):
+
+* **OpenStack.** `anomaly_labels.txt` is read from disk and never loaded; no tool and no table holds
+  it. The lead's own `durations` ranking puts the 4 labelled instances at **positions 1–4 of 2,069**
+  (by spawn time and by image phase). The two places an agent would look first find nothing: none of
+  their 100 lines is above INFO, and API latency is 0.2340 vs 0.2341 s between the files.
+* **BGL.** The label column is part of the data, so we do not claim the agent is blind to it.
+  Instead: signatures computed from message text alone agree with the label on **99.9998%** of
+  4,747,963 lines (as an alert detector, precision 0.999991 and recall 0.999983), against 0.4065
+  precision for a FATAL-or-FAILURE filter. Ranking by signature loses nothing the label knew.
+
+## Huge data: the 1-billion-row remote file
+
+`make bench` indexes a slice of the organisers' 1B-row OTel Parquet file (41 GB on S3) in place,
+through an inverted index on a view, and prints how much it read (`bench/README.md`). The whole
+file's shape comes from its footer in about 2 s. Ten seconds of data, 5,275,597 rows, are pruned to
+10 of 1,624 row groups and indexed in 60 s; a phrase search on that index then takes 13 ms and never
+touches S3. One setting decides whether this works on 26.09.1.3: **`SET enable_external_file_cache
+= false`**. With the default, reads are not pruned and big ones crash the server, which is recorded
+with its reproduction in `docs/capabilities.md` §11 rather than left out.
+
 ## Disclosure
 
 Per the challenge rules, the tools, models and datasets used are listed in
@@ -225,7 +262,12 @@ existed before it.
 Stated deliberately, because the brief rewards separating measured facts from hypotheses:
 BGL's label column is incomplete (84,253 fault lines carry the `-` "normal" label); our
 `template_id` is `UNKNOWN` because no template IDs are supplied; and the OpenStack
-anomalies are only visible through lifecycle durations, not through log levels.
+anomalies are only visible through lifecycle durations, not through log levels. The ownership
+table is our construction, not ground truth. BGL's label is visible to the agent, so its validation
+checks agreement rather than blindness. On SereneDB 26.09.1.3 the remote index needs the external
+file cache off, and on this machine it crashes the server above about ten seconds of the OTel file
+(`bench/README.md`). No answer states a cost, downtime or customer figure: the logs cannot support
+one, and the manager lint rejects them.
 
 ## Licence
 
