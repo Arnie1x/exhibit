@@ -24,8 +24,8 @@ Rules the server enforces, so do not fight them:
 * numbers come from SQL, never from you -- never compute or estimate a figure yourself;
 * search runs against an inverted-indexed relation, aggregation against the base table;
 * the operator that produced a count is stated in every envelope (term / phrase / any / all);
-* `count_events` counts LINES. Lines are not incidents (one node produced 136,209 lines in six
-  hours while a fleet-wide event produced 49,154 across 22,529 nodes) -- the `episodes` tool is the
+* `count_events` counts LINES. Lines are not incidents: one node produced 152,183 lines in 6h22m
+  while a fleet-wide event produced 49,154 across 22,529 nodes. The `episodes` tool is the
   incident-level answer and arrives in Stage 3.
 """
 
