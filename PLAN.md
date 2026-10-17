@@ -390,8 +390,8 @@ tools" is team-stage 3; its "Stage 6 — Bonus tracks" is not team-stage 6).
 | **Sat 10:30–12:00** | Stage 0–1: probe + data layer. **Already done** — `make bootstrap smoke` prints the headline numbers on this box | `make bootstrap` < 60 s; `make smoke` prints 4,747,963 / 207,812 and 348,460 → 19,250 | ✓ done (Adnan) |
 | **Sat 12:00–14:00** | Stage 2: MCP server skeleton + `describe_data`, `search_logs`, `count_events` against the live DB | A stock client lists three tools and answers one question with an envelope | ✓ done — merged; the stock client passes |
 | **Sat 14:00–17:00** | Stage 3: `top_signatures`, `trend`, `episodes`, `durations`, `ownership` — W1 and W2 runnable as queries | `make demo` prints both investigations, numbers matching §9 | ✓ done — merged 17 Oct 12:21 UTC (PR #2); `make demo` prints W1 and W2 per role |
-| **Sat 17:00–18:00** | **Freeze for the Q&A.** Write the three questions you will ask (below) and rehearse the 10 minutes | You can explain W1 in 90 seconds without notes | — tonight |
-| **Sat 18:00–20:00** | **Per-team Q&A with the challenge owners** (10 min slot) | Answers written down and folded back into this plan; if a rubric reading changes, note it tonight | — tonight |
+| **Sat 17:00–18:00** | **Freeze for the Q&A.** Write the three questions you will ask (below) and rehearse the 10 minutes | You can explain W1 in 90 seconds without notes | ✓ done |
+| **Sat 18:00–20:00** | **Per-team Q&A with the challenge owners** (10 min slot) | Answers written down and folded back into this plan; if a rubric reading changes, note it tonight | ✓ done — answers folded into §13 |
 | **Sat 20:00–24:00** | Stage 4: the three roles + answer contract + numeric lint + manager lint | Same question, three answers, three evidence paths — visibly different, not longer | ✓ done **early** (17 Oct) — §9b roles/grants and the contract came with stages 2–3; `lint_answer` closed the lints. Gate shown by `make demo`'s per-role sections |
 | **Sun 00:00–08:00** | **Sleep. Non-negotiable.** The plan assumes it | — | — |
 | **Sun 08:00–12:00** | Stage 5: validation (hidden ground truth), the evaluation harness, fix what it finds | Eval score printed; every number in the README reproducible | ✓ done **early** (17 Oct) — ground truth was already in (`scripts/validate_ground_truth.py`); `make eval` → 15/15, and it found three seam defects which are fixed |
@@ -455,6 +455,18 @@ exactly one slot.
 6. **How will the judges actually connect to a submitted MCP server?** Which client, which command, what timeout? This determines how much packaging we do on Sunday.
 7. **Manager-level answers: how precise should prioritisation be?** A ranked list with reasons, or a single recommendation with a confidence statement?
 8. **Is a private repo during the build acceptable if it is public at submission?** (Also ask this in Discord in case the room is short.)
+
+**Answers received (Sat 17 Oct, in the session):**
+
+- **Q1–Q2 — the data is authoritative.** Use the full measured sets (42 categories incl. `-`;
+  six severities); ignore the brief's "twelve" and "five" for scoring; do not map. Nothing in the
+  build changes — the story adopts it out loud: "the brief says twelve; the data says 42 — we use
+  the data."
+- **Q3 — five minutes** is the demo slot (a maximum; fill it). The video is 5:00, not 3:00.
+- **Q6 — judges will clone the repo** and look at everything. Deploying is a welcome touch but
+  optional; the star prerequisite is done.
+- **Q4, Q5, Q8 were not asked** — they go to Discord in writing; draft at
+  `docs/followup-questions.md`.
 
 **The 10-minute script:** 30 seconds of introduction ("two MSc students, we built X") → then the
 **money comparison** from §4 finding 2 on screen (152,182 lines in one incident on one node vs
