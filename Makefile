@@ -1,8 +1,12 @@
 SHELL := /bin/bash
 PSQL  ?= psql -h 127.0.0.1 -p 7890 -U postgres -P pager=off
-DATA  ?= /data/loghub          # path INSIDE the SereneDB container
-MAP   ?= /data/ownership.csv   # ownership table, visible to the container
-CACHE ?= $(PWD)/data           # mounted to /data in the container
+# The three paths below are paths INSIDE the SereneDB container (CACHE is the host side, mounted
+# at /data). Keep the comments off the assignment lines: in Make, the whitespace before a trailing
+# `#` becomes part of the value, and `/data/loghub   ` is not a path that any glob will match --
+# which is exactly how `make derive` came to fail on a fresh clone while every other target passed.
+DATA  ?= /data/loghub
+MAP   ?= /data/ownership.csv
+CACHE ?= $(PWD)/data
 
 .PHONY: help setup doctor up down fetch parse probe derive index bootstrap smoke demo bench eval roles evidence mcp check clean-check
 
