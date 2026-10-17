@@ -1,4 +1,4 @@
-# PLAN — grep && Pray
+# PLAN — Logging off Early
 ## Role-aware log intelligence on SereneDB · National AI Hackathon 2026 · Track 04
 
 **Team:** Arnie (`Arnie1x`) + Adnan (`AdnanSN`) — two people, one repo, `github.com/Arnie1x/exhibit`

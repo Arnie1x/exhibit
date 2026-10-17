@@ -1,4 +1,4 @@
-# grep && Pray — role-aware log intelligence on SereneDB
+# Logging off Early — role-aware log intelligence on SereneDB
 
 **National AI Hackathon 2026 · SchubKI · Track 04 — "Making Sense of Logs"**
 
