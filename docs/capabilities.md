@@ -194,7 +194,32 @@ index.
 | Huge datasets (9c) | **Sound.** The engine reads remote Parquet over HTTPS directly (1B rows, 0.8 s for a slice, no download); index the **view** and refresh with `REINDEX INDEX`. Report bytes read and build time |
 | Eval harness (9d) | **Sound and cheap.** Golden SQL + tool-selection scoring needs nothing exotic |
 
-## 8. Reproduction
+## 8. Stage 3 — windowing, change detection, and two traps
+
+Measurements taken while building the analysis tools (17 Oct), each one a decision rather than a
+curiosity:
+
+| Question | Measured answer |
+|---|---|
+| Can the episode **gap** be a bound parameter? | **Yes** — `INTERVAL '1 minute' * %s` binds (`5` → `00:05:00`). This is what makes the gap a real parameter instead of string-spliced SQL |
+| Does `date_bin` take two arguments? | **No.** `date_bin(INTERVAL, TIMESTAMP)` → `UndefinedFunction`; the signature is `date_bin(stride INTERVAL, source TIMESTAMP, origin TIMESTAMP)`. Buckets are therefore aligned to **each corpus's own start** (2005-06-03 / 2017-05-14) rather than to 1970 |
+| Does `date_trunc` need a cast? | **No** on our `TIMESTAMP` columns (`date_trunc('day', ts)` returns 2005-06-11 00:00:00 for the burst day). The `::timestamptz` cast is only for nanosecond timestamps and for `'week'` |
+| Does `FULL OUTER JOIN` work? | **Yes** — the foreground/baseline join in `what_changed` depends on it |
+| `round(x, 2)`, `nullif`, `coalesce`, `count(DISTINCT …)`? | All work; used in the rate-ratio and blast-radius expressions |
+| Can `ts_dict_agg` give significant terms? | **Not usefully.** `ts_dict_agg(content)` returns **per-term identifier arrays**: one call over ~21,000 matching lines returned roughly **4.8 MB** of output. `ts_dict_count` takes exactly one argument (`col0 ANY`) and returns `INTEGER[]`, so it cannot be paired with terms. Neither yields a bounded term→count map. `what_changed` therefore measures change at **signature** level — see `PLAN.md` §7 |
+| Does a statement with no result set break the driver? | **Yes** — `fetchall()` on an `INSERT` raises *"the last operation didn't produce a result"*, and a broad `except` in the ledger swallowed it into a note: the evidence ledger silently recorded **nothing** until this was found by an acceptance check. Writes go through `db.execute`, and the checks now assert that a ledger row exists |
+| Is the result order stable? | **No** for ties. `ORDER BY lines DESC` over 19,250 incidents — thousands of them one line long — can come back in a different sequence between runs, which made the ledger's hash report a false MISMATCH. The hash is now **order-independent** (rows are sorted before hashing); order is presentation, content is the claim |
+| Is an index relation's column set the base table's? | **No.** `bgl_idx` = `id, ts, alert_category, is_alert, node, node_kind, rack, midplane, nodecard, component, level, level_rank, template_id, team, content` — **no `signature`** (that lives on `bgl_sig`); `os_idx` has no `problem`. A tool that walks lines through the index must name columns the *index* has |
+| Anything else that bites? | `owner_map` stores `'BGL'`/`'OpenStack'` capitalised, so an equality filter must case-fold **both** sides |
+
+Episode coalescing, measured through the tool rather than beside it: **22,002** incidents at a
+1-minute gap, **19,250** at 5 (equal to the prebuilt view — the tool recomputes it), **14,479** at
+60, and **1,377** when the failure domain is dropped. The burst itself is **152,182 `KERNDTLB`
+lines** in one incident on one node, while **152,183** is every alert line on that node that day
+(152,182 + 1 `KERNMC`) — two different cuts of the same six hours, and both are guarded by checks so
+neither can be "corrected" into the other.
+
+## 9. Reproduction
 
 ```bash
 docker run -d --name serenedb -p 127.0.0.1:7890:7890 -v serenedb-data:/var/lib/serenedb \

@@ -188,3 +188,48 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 3 (Adnan's part done Sat 13:0
 - Before the Q&A (Sat 17:00): agree with Arnie on PLAN.md §9 line 316 (82% of alert lines; 8 nodes per incident), the imagecache ownership split, and the host password for `postgres` on Docker Desktop.
 - When Arnie's Stage 3 tools land: run each tool once per demo step and compare it with `logs/demo-pass3.log` (same numbers, same order).
 - Stage 4 (Sat 20:00–24:00): evidence-ledger grants in `sql/50_roles.sql` once the table name is known.
+
+- Team stage 3 (Sat 14:00–17:00): views and golden SQL behind `top_signatures`, `trend`, `episodes`, `durations`, `ownership`; write `sql/90_queries.sql` so `make demo` prints W1 and W2 (the Makefile names it; it does not exist yet). W2's numbers are already in `make smoke` §6b–§7a.
+- Before the Q&A: agree with Arnie on the PLAN.md burst correction and on the imagecache ownership split.
+
+## Handoff back (Arnie, Stage 3, Sat 17 Oct)
+
+Branch **`stage-3-tools`**, PR open, **not merged** — I am holding it until you finish so we do the
+final consensus together. Nothing of yours is touched: `sql/50_roles.sql`, `tests/golden/`, the
+W2 views and `CLAUDE.md` are exactly as you left them.
+
+- **All ten tools exist now**, plus `verify_evidence` = eleven. `make check` runs **80 checks**
+  (was 46) and `scripts/stage2_mcp_client.py` exercises Stage 3 through a stock MCP client too. The
+  new checks assert numbers, not shapes: `episodes` must return 19,250 at a 5-minute gap and equal
+  the prebuilt view it recomputes; `top_signatures` ranked by lines / nodes / episodes must return
+  **three different** top problems, and it does.
+- **The evidence ledger is mine to wire, and it is done**: table `exhibit_evidence`, created by
+  **`sql/55_evidence.sql`** (`make evidence`, which `make bootstrap` now runs *after* `roles` —
+  your GRANTs are reset by that file, which is why 55 must come last). You do **not** need to add
+  anything to `sql/50_roles.sql`; I granted the three roles SELECT/INSERT there, one table per
+  statement as you said. Every answer — **including every refusal** — is recorded, and
+  `verify_evidence` re-runs a stored statement and compares hashes.
+- **PLAN.md is updated** for everything you flagged: the burst, the OpenStack wording (§4/§9), the
+  team name. One thing to know so nobody "fixes" it later: **both burst numbers are right and they
+  are different cuts.** 152,183 = every alert line on that node that day (152,182 `KERNDTLB` + 1
+  `KERNMC` at 17:17:44.605); 152,182 = the single incident `episodes` reports. PLAN.md §4 now says
+  so, and the acceptance suite guards both.
+- **One measured deviation from the plan, recorded rather than fudged:** `what_changed` was
+  specified with `ts_dict_agg` / `ts_dict_count`. `ts_dict_agg(content)` returns per-term *identifier
+  arrays* — one call over ~21k lines returned about **4.8 MB** — and `ts_dict_count` takes exactly one
+  argument and returns `INTEGER[]`, so neither gives a bounded term→count map and neither can be
+  paired with terms. Change is therefore measured at **signature** level, rate-normalised per bucket
+  (a 6-hour window against 24 hours must not read as "down 75%"). PLAN.md §7 and
+  `docs/capabilities.md` §8 carry the measurement.
+- **Your `episodes`-gap note was exactly right and it shaped the design.** The engineer holds a grant
+  on `bgl_sig` / `os_sig`, so the gap is a real bound parameter (`INTERVAL '1 minute' * %s` binds);
+  the lead and manager read pre-grouped relations, so asking them for another gap returns a refusal
+  that names the reason instead of silently returning a different number. `docs/capabilities.md` §8
+  also records that `date_bin` here is **3-argument** (stride, source, **origin**), which is why
+  buckets align to each corpus's own start.
+- **You wrote `sql/90_queries.sql` while this was open** — I rebased onto it and ran `make demo`;
+  it prints W1 and W2 as intended, and my tools print the same numbers from the other side. When
+  you run my Stage 3 tools against `logs/demo-pass3.log`, `episodes` should give 19,250 at a
+  5-minute gap and 152,182 lines for the worst incident, and `top_signatures by=nodes` should put
+  `Microloader Assertion` on top — those three are acceptance checks, so a mismatch means the
+  data moved, not that the tool drifted.

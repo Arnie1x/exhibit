@@ -128,6 +128,13 @@ view on the label column undercounts faults by ~24%. Build it on **message signa
 volume puts a single sick machine on top and buries a fleet-wide event that touched 22,529
 nodes. There is a third day, 2005-06-13, with 17,409 lines across 16,644 nodes.
 
+> Two cuts of the same six hours, and both are right. **152,183** is *every alert line on that node
+> that day* — 152,182 `KERNDTLB` plus one `KERNMC` at 17:17:44.605. **152,182** is the *single
+> incident* the `episodes` tool reports: one signature, one failure domain, no gap longer than five
+> minutes. The day figure answers "how bad was that machine", the incident figure answers "how big
+> was that outage", and the acceptance suite guards both so neither can be reconciled into the other
+> by someone being helpful.
+
 **3. Ranking by *episodes* inverts the ranking again.** At a 5-minute gap the leaders are not
 the volume leaders:
 
@@ -255,11 +262,21 @@ Core ten. Each returns the envelope; each has a constraint it must respect.
 | `durations` | lifecycle outliers per instance | The only path to OpenStack's labelled anomalies |
 | `ownership` | team ↔ component/service mapping | Joins `owner_map`; exposes UNOWNED explicitly |
 | `nearby_events` | what else happened in the ±N minutes | Uses `id` ranges on the index relation |
-| `what_changed` | significant terms, foreground vs baseline | `ts_dict_agg` / `ts_dict_count`, lift over chance |
+| `what_changed` | what moved, foreground vs baseline | Rate-normalised per bucket, so a 6-hour window against 24 hours does not read as "down 75%"; anchored to the data's own last timestamp. **Measured deviation:** `ts_dict_agg` returns per-term *identifier arrays* (~4.8 MB from one call over 21k lines) and `ts_dict_count` takes one argument and returns `INTEGER[]`, so neither gives a bounded term→count map — change is measured at **signature** level instead (`docs/capabilities.md` §8) |
 | `episodes` | incidents, not lines | Coalescing gap is a **parameter** (1/5/60 min), stated in the answer |
 
 Optional four, only after the MVP gate: `trace_context`, `drop_index` / `create_index`
 (probe-gated, see §14), `explain_query`.
+
+**Status 17 Oct — all ten are implemented and checked.** Three shipped in Stage 2 (`describe_data`,
+`search_logs`, `count_events`: persona-aware, every statement under `SET ROLE`); the other seven in
+Stage 3 on the `stage-3-tools` branch, plus `verify_evidence`, which re-runs any stored answer and
+compares it hash for hash. `make check` now runs **80 acceptance checks** written against measured
+numbers rather than shapes — `episodes` must return 19,250 at a five-minute gap *and* equal the value
+of the prebuilt view it recomputes; `top_signatures` ranked three ways must return **three different
+problems** (it does); `trend` must end at the corpus's own last day. Every answer — **including every
+refusal** — is recorded in the `exhibit_evidence` ledger created by `sql/55_evidence.sql`, which is
+how "show your work" stops being a promise.
 
 **`validate` is deliberately NOT a tool.** Ground truth (`anomaly_labels.txt`, BGL's label column)
 lives in `scripts/validate_ground_truth.py`, which the agent cannot call and cannot read. A tool the
@@ -312,7 +329,11 @@ aspirational.
 The question is deliberately the one every persona would ask. The three answers use different
 evidence:
 
-- *engineer*: `top_signatures` returns `data TLB error interrupt` with 152,734 lines — and `search_logs` shows it is one node emitting 152,183 lines in 6h22m.
+- *engineer*: `top_signatures` returns `data TLB error interrupt` with 152,734 lines corpus-wide at
+  the signature x midplane grain — and `episodes` shows the worst of those incidents is **one node,
+  152,182 lines, 6h21m48s**, while `top_signatures by=nodes` puts `Microloader Assertion` on top and
+  `by=episodes` puts `Lustre mount FAILED` there. Three criteria, three different answers, which is
+  the finding the demo exists to show.
 - *lead*: grouped by team, 91% of alert volume belongs to `compute-platform`; but by episodes, the recurring dull ache is `ciod` and `Lustre mount FAILED`, thousands of small incidents across eight nodes.
 - *manager*: 348,460 alert lines → 19,250 incidents → ranked by blast radius and persistence, with `Not established` for cost. The recommendation is a statement about *what to fix first and why*, not a count.
 
@@ -419,8 +440,8 @@ exactly one slot.
 8. **Is a private repo during the build acceptable if it is public at submission?** (Also ask this in Discord in case the room is short.)
 
 **The 10-minute script:** 30 seconds of introduction ("two MSc students, we built X") → then the
-**money comparison** from §4 finding 2 on screen (152,183 lines on one node vs 49,154 lines on
-22,529 nodes) → then your questions. The comparison buys credibility in ten seconds and makes
+**money comparison** from §4 finding 2 on screen (152,182 lines in one incident on one node vs
+49,154 lines across 22,529 nodes) → then your questions. The comparison buys credibility in ten seconds and makes
 everyone in the room want to help you.
 
 ---
@@ -501,7 +522,8 @@ branch at most; every claim in the README reproducible from a clean checkout.
 ```
 BGL 4,747,963 rows · OpenStack 207,812 rows · span 2005-06-03 → 2006-01-04
 alert lines 348,460 → 19,250 failure-domain episodes → 1,377 global episodes
-152,183 lines on 1 node (2005-06-11)  vs  49,154 lines on 22,529 nodes (2005-06-14)
+152,182 lines in ONE incident on 1 node (2005-06-11)  vs  49,154 lines on 22,529 nodes (2005-06-14)
+152,183 = every alert line on that node that day (152,182 KERNDTLB + 1 KERNMC) — a different cut
 84,253 fault lines carrying the "normal" label
 OpenStack: 188 ERROR+CRITICAL lines = 184 lines in 8 tracebacks of one imagecache bug + 4 token-validation lines (2 failed validations, 6 lines with their 2 WARNINGs)
 4 of 4 labelled anomalies in the top 4 by lifecycle duration

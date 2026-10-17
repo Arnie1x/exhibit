@@ -43,9 +43,12 @@ async def main() -> int:
             listed = await session.list_tools()
             names = [t.name for t in listed.tools]
             print(f"tools: {', '.join(names)}")
-            for expected in ("describe_data", "search_logs", "count_events"):
-                assert expected in names, f"tool {expected} is missing"
-            print("all three tools are exposed")
+            expected = ("describe_data", "search_logs", "count_events", "episodes",
+                        "top_signatures", "trend", "durations", "ownership", "nearby_events",
+                        "what_changed", "verify_evidence")
+            for name in expected:
+                assert name in names, f"tool {name} is missing"
+            print(f"all {len(expected)} tools are exposed")
 
             print("\ncalling count_events(bgl, group_by=team)")
             res = payload(await session.call_tool("count_events", {"dataset": "bgl", "group_by": "team", "limit": 3}))
@@ -78,6 +81,37 @@ async def main() -> int:
             print(" ", res["headline"])
             print(" ", res["notes"][0][:160])
             assert res["refused"] is True, "the lead must not be able to search"
+
+            print("\nStage 3, through the same stock client: incidents, not lines")
+            res = payload(await session.call_tool("episodes", {
+                "dataset": "bgl", "gap_minutes": 5, "limit": 1}))
+            print(" ", res["headline"])
+            worst = res["rows"][0]
+            print(f"    deepest incident: {worst['signature']} on {worst['midplane']} — "
+                  f"{worst['lines']:,} lines, {worst['nodes']} node(s), {worst['span']}")
+            assert res["total_matches"] == 19_250, f"expected 19,250 incidents, got {res['total_matches']}"
+            assert worst["lines"] == 152_182 and worst["nodes"] == 1
+
+            print("\nand the same question at an hour's gap, as the lead (whose relation is pre-grouped)")
+            res2 = payload(await session.call_tool("episodes", {
+                "dataset": "bgl", "gap_minutes": 60, "persona": "lead", "limit": 1}))
+            print(" ", res2["headline"])
+            print(" ", res2["notes"][0][:150])
+            assert res2["refused"] is True
+
+            print("\nre-running the first answer from the evidence ledger")
+            ver = payload(await session.call_tool("verify_evidence", {"evidence_id": res["evidence_id"]}))
+            print(f"  {ver['evidence_id']}: match={ver['match']} "
+                  f"({ver['rows_recorded']:,} rows recorded, {ver['rows_now']:,} now)")
+            print(f"  {ver['verdict']}")
+            assert ver["match"] is True
+
+            print("\nranked by blast radius instead of volume")
+            res3 = payload(await session.call_tool("top_signatures", {
+                "dataset": "bgl", "by": "nodes", "limit": 1}))
+            top = res3["rows"][0]
+            print(f"  {top['signature']} on {top['midplane']}: {top['nodes']} nodes, "
+                  f"{top['lines']:,} lines, {top['episodes']} episodes")
 
             print("\nstock-client check: PASS")
             return 0

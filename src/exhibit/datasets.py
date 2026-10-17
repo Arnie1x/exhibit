@@ -317,3 +317,292 @@ def resolve(persona_key: str | None, dataset_key: str) -> tuple[Persona, Dataset
 
 def catalogue() -> str:
     return ", ".join(sorted(DATASETS))
+
+
+# =========================================================================== stage 3 specs
+# Three more per-(persona, dataset) facts live here, so the tools stay free of identifiers and the
+# *shape* of a persona's evidence is declared in one place. The split they encode is the one the
+# engine forces on us:
+#
+# * the engineer holds a grant on the base relation (`bgl_sig` / `os_sig`), so episodes can be
+#   **computed** at any gap with the LAG pattern -- the gap is a real parameter there;
+# * the lead and manager hold no such grant; they read relations where the 5-minute grouping is
+#   already baked in, so their episode count is **precomputed** and the tool must say so rather
+#   than pretend it can vary the gap. That is a property of the data they are allowed to see.
+
+
+@dataclass(frozen=True)
+class EpisodeSource:
+    """How one persona gets episodes for one dataset."""
+
+    kind: str                            # "computed" | "precomputed"
+    relation: str                        # computed: the base sig relation; precomputed: the view
+    partitions: dict[str, tuple[str, ...]] = field(default_factory=dict)   # coalescing key options
+    order: tuple[str, ...] = ("ts",)
+    filter_sql: str = ""
+    count_column: str = ""               # precomputed: the column holding the count
+    gap_minutes: int | None = None       # precomputed: the gap baked into that relation
+    display: tuple[str, ...] = ()        # carried alongside the coalescing key
+    nodes: str = "count(DISTINCT node)"  # computed path: the blast-radius expression
+    nodes_column: str = "nodes"          # stored path: the column holding it
+    node_source: str = "node"            # computed path: the raw column that expression reads
+    time_column: str = ""                # precomputed relations only: what `since`/`until` filter
+    note: str = ""
+
+    @property
+    def default_partition(self) -> str:
+        return next(iter(self.partitions)) if self.partitions else ""
+
+
+@dataclass(frozen=True)
+class SignatureRank:
+    """Where one persona's signature ranking comes from, and what the three numbers mean there."""
+
+    relation: str
+    key: str                             # the column that names the signature
+    grain: tuple[str, ...] = ()          # how rows are grouped; defaults to (key,)
+    extra: tuple[str, ...] = ()          # columns carried alongside (team, component, ...)
+    node_source: str = ""                # computed path: raw column the node expression reads
+    lines: str = "count(*)"
+    episodes: str = ""
+    nodes: str = ""                      # blast radius
+    filter_sql: str = ""
+    fixed_gap: int | None = None
+    note: str = ""
+
+
+EPISODES: dict[tuple[str, str], EpisodeSource] = {
+    ("engineer", "bgl"): EpisodeSource(
+        kind="computed",
+        relation="bgl_sig",
+        partitions={"failure_domain": ("signature", "midplane"), "signature": ("signature",)},
+        order=("ts",),
+        filter_sql="is_alert",
+        display=("signature", "alert_category", "component"),
+        note="alert lines coalesced per signature x midplane; pass coalesce_by='signature' to drop "
+             "the failure domain (19,250 becomes 1,377 at a 5-minute gap)",
+    ),
+    ("engineer", "openstack"): EpisodeSource(
+        kind="computed",
+        relation="os_sig",
+        partitions={"problem": ("problem",)},
+        order=("ts", "id"),
+        filter_sql="level <> 'INFO'",
+        display=("service",),
+        nodes="count(DISTINCT nullif(instance_id, 'NONE'))",
+        node_source="instance_id",
+        note="lines above INFO coalesced per problem",
+    ),
+    ("lead", "bgl"): EpisodeSource(
+        kind="precomputed", relation="bgl_incident", gap_minutes=5,
+        partitions={"failure_domain": ("signature", "midplane")},
+        display=("component", "team"), nodes_column="nodes", time_column="started",
+        note="one row per incident at the view's fixed 5-minute gap; the lead has no grant on "
+             "bgl_sig, so the gap cannot be varied for this role",
+    ),
+    ("lead", "openstack"): EpisodeSource(
+        kind="precomputed", relation="os_incident", gap_minutes=5,
+        partitions={"problem": ("problem",)},
+        display=("service", "team"), nodes_column="instances", time_column="started",
+        note="one row per incident at the view's fixed 5-minute gap",
+    ),
+    ("manager", "bgl"): EpisodeSource(
+        kind="precomputed", relation="mgr_bgl_risk", count_column="episodes_5min", gap_minutes=5,
+        partitions={"signature_id": ("signature_id",)},
+        display=("component", "team"), nodes="max(nodes_affected)",
+        note="precomputed per signature at a fixed 5-minute gap",
+    ),
+    ("manager", "openstack"): EpisodeSource(
+        kind="precomputed", relation="mgr_os_risk", count_column="incidents_5min", gap_minutes=5,
+        partitions={"problem": ("problem",)},
+        display=("service", "team"), nodes="max(requests_affected)",
+        note="precomputed per problem at a fixed 5-minute gap",
+    ),
+}
+
+RANK: dict[tuple[str, str], SignatureRank] = {
+    ("engineer", "bgl"): SignatureRank(
+        relation="bgl_sig", key="signature",
+        grain=("signature", "midplane"),
+        extra=("alert_category", "component", "team"),
+        node_source="node", lines="count(*)", nodes="count(DISTINCT node)",
+        filter_sql="is_alert",
+        note="grain = signature x midplane, the same grain an incident is coalesced at, so the "
+             "episode count is counted on the key it was built from; nodes = distinct machines",
+    ),
+    ("engineer", "openstack"): SignatureRank(
+        relation="os_sig", key="problem", grain=("problem",), extra=("logger", "service", "team"),
+        node_source="instance_id",
+        lines="count(*)", nodes="count(DISTINCT nullif(instance_id, 'NONE'))",
+        filter_sql="level <> 'INFO'",
+        note="episodes computed per problem; nodes = distinct instances",
+    ),
+    ("lead", "bgl"): SignatureRank(
+        relation="bgl_incident", key="signature", grain=("signature",), extra=("team", "component"),
+        lines="sum(lines)", episodes="count(*)", nodes="max(nodes)", fixed_gap=5,
+        note="lines summed across incidents, episodes counted, nodes as the PEAK blast radius -- "
+             "never summed, they are distinct per incident",
+    ),
+    ("lead", "openstack"): SignatureRank(
+        relation="os_incident", key="problem", grain=("problem",), extra=("team", "service"),
+        lines="sum(lines)", episodes="count(*)", nodes="max(instances)", fixed_gap=5,
+        note="nodes = peak instances per incident",
+    ),
+    ("manager", "bgl"): SignatureRank(
+        relation="mgr_bgl_risk", key="signature_id",
+        grain=("signature_id", "component", "team"), extra=("alert_category",),
+        lines="sum(alert_lines)", episodes="sum(episodes_5min)", nodes="max(nodes_affected)",
+        fixed_gap=5,
+        note="a problem is named by signature_id + component + team; no log text",
+    ),
+    ("manager", "openstack"): SignatureRank(
+        relation="mgr_os_risk", key="problem", grain=("problem",), extra=("team", "service"),
+        lines="sum(lines)", episodes="sum(incidents_5min)", nodes="max(requests_affected)",
+        fixed_gap=5, note="one row per problem, above INFO only",
+    ),
+}
+
+# Time buckets: `date_bin` needs an origin, and our corpora have two very different epochs, so the
+# bucket is aligned to the dataset's own start rather than to 1970.
+ORIGIN = {
+    "bgl": "TIMESTAMP '2005-06-03 00:00:00'",
+    "openstack": "TIMESTAMP '2017-05-14 00:00:00'",
+    "corpus": "TIMESTAMP '2005-06-03 00:00:00'",
+}
+BUCKETS: dict[str, int] = {"hour": 1, "day": 24, "week": 168}   # name -> hours
+
+# What the *index* relation carries, probe-verified: it is NOT the base table's column set.
+# `bgl_idx` has no `signature` (that lives on `bgl_sig`) and `os_idx` has no `problem`, so a tool
+# that walks lines through the index has to name columns this relation actually has.
+INDEX_COLUMNS: dict[str, tuple[str, ...]] = {
+    "bgl": ("id", "ts", "alert_category", "node", "midplane", "component", "level", "team"),
+    "openstack": ("id", "ts", "instance_id", "service", "logger", "level", "team"),
+}
+INDEX_GROUP: dict[str, str] = {"bgl": "alert_category", "openstack": "logger"}
+
+
+def episodes_of(persona_key: str | None, dataset_key: str) -> EpisodeSource:
+    p, d, _ = resolve(persona_key, dataset_key)
+    try:
+        return EPISODES[(p.key, d.key)]
+    except KeyError:
+        raise KeyError(
+            f"no episode source for {p.key} on {d.key}; "
+            f"available: {', '.join(f'{a}/{b}' for a, b in sorted(EPISODES))}"
+        ) from None
+
+
+@dataclass(frozen=True)
+class DurationSource:
+    """OpenStack lifecycle timings: per instance for the hands-on roles, a distribution for the
+    manager (whose view deliberately carries no instance ids)."""
+
+    relation: str
+    key: str
+    phases: tuple[str, ...]
+    extra: tuple[str, ...] = ()
+    note: str = ""
+
+
+_INSTANCE_DURATIONS = DurationSource(
+    relation="os_instance_durations",
+    key="instance_id",
+    phases=("spawn_s", "build_s", "image_s", "boot_s", "run_s", "teardown_s", "destroy_s",
+            "dealloc_s", "claim_s", "lifetime_s"),
+    extra=("lines", "source_file", "team"),
+    note="one row per instance, ~25 lines each: an outlier here is a slow server build, not a "
+         "noisy one. These four phase columns are the only place the labelled anomalies in "
+         "anomaly_labels.txt are visible at all -- they log at INFO and their aggregate latency "
+         "is identical to the normal files",
+)
+
+DURATIONS: dict[str, DurationSource] = {
+    "engineer": _INSTANCE_DURATIONS,
+    "lead": _INSTANCE_DURATIONS,
+    "manager": DurationSource(
+        relation="mgr_os_lifecycle",
+        key="file_group",
+        phases=("spawn_p50_s", "spawn_p95_s", "spawn_max_s", "image_p50_s", "image_max_s",
+                "boot_p50_s", "boot_max_s"),
+        extra=("instances", "spawned"),
+        note="a distribution per file group, not per instance: the manager's view carries no "
+             "instance ids and no per-instance phases",
+    ),
+}
+
+
+@dataclass(frozen=True)
+class ChangeSource:
+    """Where one persona reads a before/after comparison, and at what resolution."""
+
+    relation: str
+    time_column: str
+    key: str                     # the dimension that changed
+    measure: str = "count(*)"
+    granularity: str = "hour"    # how window_hours is read: exact | whole days
+    filter_sql: str = ""
+    note: str = ""
+
+
+CHANGE: dict[tuple[str, str], ChangeSource] = {
+    ("engineer", "bgl"): ChangeSource(
+        "bgl_sig", "ts", "signature", filter_sql="is_alert",
+        note="hour-exact windows on the parsed relation",
+    ),
+    ("engineer", "openstack"): ChangeSource(
+        "os_sig", "ts", "problem", filter_sql="level <> 'INFO'",
+        note="hour-exact windows on the parsed relation",
+    ),
+    ("lead", "bgl"): ChangeSource(
+        "lead_bgl_daily", "day", "signature", measure="sum(lines)", granularity="day",
+        note="the lead's BGL view is daily, so the window is read in whole days",
+    ),
+    ("lead", "openstack"): ChangeSource(
+        "lead_os_hourly", "hour", "logger", measure="sum(lines)",
+        note="the lead's OpenStack view is hourly, so the window is exact",
+    ),
+    ("manager", "bgl"): ChangeSource(
+        "mgr_rollup_daily", "day", "category", measure="sum(lines)", granularity="day",
+        filter_sql="dataset = 'bgl'",
+        note="the rollup is daily and grouped by category/team/component, not by signature",
+    ),
+    ("manager", "openstack"): ChangeSource(
+        "mgr_rollup_daily", "day", "category", measure="sum(lines)", granularity="day",
+        filter_sql="dataset = 'openstack'",
+        note="the rollup is daily and grouped by category, not by signature",
+    ),
+    ("manager", "corpus"): ChangeSource(
+        "mgr_rollup_daily", "day", "category", measure="sum(lines)", granularity="day",
+        note="the cross-corpus rollup, daily",
+    ),
+}
+
+
+def durations_of(persona_key: str | None) -> DurationSource:
+    p = persona(persona_key or "engineer")
+    try:
+        return DURATIONS[p.key]
+    except KeyError:
+        raise KeyError(f"no duration source for {p.key}") from None
+
+
+def change_of(persona_key: str | None, dataset_key: str) -> ChangeSource:
+    p, d, _ = resolve(persona_key, dataset_key)
+    try:
+        return CHANGE[(p.key, d.key)]
+    except KeyError:
+        raise KeyError(
+            f"no change source for {p.key} on {d.key}; "
+            f"available: {', '.join(f'{a}/{b}' for a, b in sorted(CHANGE))}"
+        ) from None
+
+
+def rank_of(persona_key: str | None, dataset_key: str) -> SignatureRank:
+    p, d, _ = resolve(persona_key, dataset_key)
+    try:
+        return RANK[(p.key, d.key)]
+    except KeyError:
+        raise KeyError(
+            f"no ranking source for {p.key} on {d.key}; "
+            f"available: {', '.join(f'{a}/{b}' for a, b in sorted(RANK))}"
+        ) from None
