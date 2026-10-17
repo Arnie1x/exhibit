@@ -1,118 +1,216 @@
--- Three role views over the OTel log corpus  (National AI Hackathon 2026, SereneDB logs track).
--- Everything here is COMPUTED BY THE DATABASE. The agent's job is to explain these rows and
--- recommend next steps -- never to produce a number a query could have produced.
+-- sql/50_roles.sql
+-- Role scope enforced in the database: three roles, each holding SELECT on its own views.
 --
---   psql -h 127.0.0.1 -p 7890 -U postgres -P pager=off -f /home/ubuntu/serenedb/roles.sql
+-- SereneDB 26.09.1.3 has no row-level security, so scope is which relations a role can read
+-- (docs/capabilities.md §6, team plan §16 rules 12-14, all measured):
+--   * GRANT cannot target an index relation, and a query on bgl_idx is checked against bgl_ev:
+--     a role with SELECT on bgl_ev can search bgl_idx by name, a role without it cannot.
+--   * A view reads its sources with its owner's (postgres's) privileges, so a role holding only
+--     a view sees exactly that view's columns, and search through a view over bgl_idx works.
+--   * SECURITY DEFINER is not honoured; CREATE ROLE IF NOT EXISTS and DROP OWNED BY do not
+--     exist; GRANT takes one table per statement. So roles are created once (psql \if) and never
+--     dropped, and the role views are dropped and recreated on every run, which drops their
+--     grants with them.
 --
--- All timings below are from the 10M-row load on the lab box (2 vCPU, arm64).
+--   exhibit_engineer  raw lines, highlights, timelines, neighbours: SELECT on bgl_ev, os_ev
+--                     (so bgl_idx / os_idx are searchable by name), owner_map and every view.
+--   exhibit_lead      signatures by owning team, trends, incidents, durations: lead_* rollups
+--                     and the incident views. No per-line relation, no content, no search.
+--   exhibit_manager   risks by blast radius and persistence with the affected component (BGL) or
+--                     service (OpenStack) and the owning team: mgr_* views. No log text (neither
+--                     content nor signature text: a problem is a signature_id plus its alert
+--                     category), no node IDs, no logger names.
+--
+-- Roles are LOGIN without a password: the server runs with trust auth on 127.0.0.1 only
+-- (CLAUDE.md rule 10). Never put a password in this file.
+--
+-- Run after sql/30_views.sql, whose DROP ... CASCADE removes these views (make bootstrap does):
+--   psql -h 127.0.0.1 -p 7890 -U postgres -f sql/50_roles.sql
 
-\pset border 2
-\timing on
+\set ON_ERROR_STOP on
+-- GRANT / REVOKE / CREATE VIEW each print an empty "Success" result here; keep the output to
+-- the scope proof at the end.
+\o /dev/null
 
--- =====================================================================================
--- 0. DATA RECON -- run this FIRST on any corpus you are handed.
---    Three facts here changed the design of every query below.
--- =====================================================================================
-\echo '### 0. RECON — span, volume, trace-id coverage'
-SELECT min(Timestamp)                                        AS first_log,
-       max(Timestamp)                                        AS last_log,
-       count(*)                                              AS rows_total,
-       count(DISTINCT NULLIF(ServiceName, ''))                AS services_named,
-       sum(CASE WHEN TraceId = '' THEN 1 ELSE 0 END)          AS rows_without_traceid,
-       count(DISTINCT NULLIF(TraceId, ''))                    AS distinct_traces
-FROM otel_logs_idx;
+-- ---------------------------------------------------------------- roles (created once)
+SELECT NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'exhibit_engineer') AS need_engineer,
+       NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'exhibit_lead')     AS need_lead,
+       NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'exhibit_manager')  AS need_manager
+\gset
+\if :need_engineer
+CREATE ROLE exhibit_engineer LOGIN;
+\endif
+\if :need_lead
+CREATE ROLE exhibit_lead LOGIN;
+\endif
+\if :need_manager
+CREATE ROLE exhibit_manager LOGIN;
+\endif
 
-\echo '### 0b. RECON — the severity vocabulary is NOT clean (note "info" vs "information")'
-SELECT SeverityText, count(*) AS n FROM otel_logs_idx GROUP BY SeverityText ORDER BY n DESC LIMIT 12;
+-- Start every run from no table-level grants (REVOKE of a privilege not held is a no-op), so a
+-- grant removed from this file is also removed from the database.
+REVOKE ALL ON bgl_ev    FROM exhibit_engineer;
+REVOKE ALL ON os_ev     FROM exhibit_engineer;
+REVOKE ALL ON owner_map FROM exhibit_engineer;
+REVOKE ALL ON bgl_ev    FROM exhibit_lead;
+REVOKE ALL ON os_ev     FROM exhibit_lead;
+REVOKE ALL ON owner_map FROM exhibit_lead;
+REVOKE ALL ON bgl_ev    FROM exhibit_manager;
+REVOKE ALL ON os_ev     FROM exhibit_manager;
+REVOKE ALL ON owner_map FROM exhibit_manager;
 
--- =====================================================================================
--- ROLE 1 — ENGINEER: "an order confirmation is failing, show me the evidence"
--- =====================================================================================
-\echo '### ENGINEER 1a — the exact failure, newest first (phrase search + time ordering)'
-SELECT Timestamp, ServiceName, SeverityText, left(Body, 66) AS body
-FROM otel_logs_idx
-WHERE Body @@ ts_phrase('failed', 'to', 'send', 'order', 'confirmation')
-ORDER BY Timestamp DESC
-LIMIT 6;
+-- ---------------------------------------------------------------- engineer
+GRANT SELECT ON bgl_ev                  TO exhibit_engineer;
+GRANT SELECT ON os_ev                   TO exhibit_engineer;
+GRANT SELECT ON owner_map               TO exhibit_engineer;
+GRANT SELECT ON bgl_sig                 TO exhibit_engineer;
+GRANT SELECT ON os_sig                  TO exhibit_engineer;
+GRANT SELECT ON bgl_episode             TO exhibit_engineer;
+GRANT SELECT ON bgl_incident            TO exhibit_engineer;
+GRANT SELECT ON bgl_signature_incidents TO exhibit_engineer;
+GRANT SELECT ON os_instance_durations   TO exhibit_engineer;
 
-\echo '### ENGINEER 1b — same corpus, ranked by RELEVANCE (BM25) instead of time'
-SELECT ServiceName, left(Body, 58) AS body,
-       ROUND(BM25(otel_logs_idx.tableoid)::numeric, 3) AS bm25
-FROM otel_logs_idx
-WHERE Body @@ ts_any(['timeout', 'refused', 'exception', 'failed'])
-ORDER BY BM25(otel_logs_idx.tableoid) DESC
-LIMIT 6;
+-- ---------------------------------------------------------------- lead
+-- Per day (BGL, seven months) and per hour (OpenStack, 2.7 days). nodes / instances / requests
+-- are distinct counts within the bucket: never sum them across buckets.
+DROP VIEW IF EXISTS lead_bgl_daily;
+CREATE VIEW lead_bgl_daily AS
+SELECT
+    ts::date                    AS day,
+    team, component, level, alert_category, is_alert,
+    signature_id, signature,
+    count(*)                    AS lines,
+    count(DISTINCT node)        AS nodes,
+    count(DISTINCT midplane)    AS midplanes
+FROM bgl_sig
+GROUP BY ts::date, team, component, level, alert_category, is_alert, signature_id, signature;
 
-\echo '### ENGINEER 1c — correlation: what ELSE happened in the failing traces'
-WITH hit AS (
-  SELECT DISTINCT TraceId FROM otel_logs_idx
-  WHERE ServiceName = 'frontend' AND Body @@ ts_phrase('failed', 'to', 'place', 'order') AND TraceId <> ''
+DROP VIEW IF EXISTS lead_os_hourly;
+CREATE VIEW lead_os_hourly AS
+SELECT
+    date_trunc('hour', ts)                          AS hour,
+    team, service, logger, level,
+    signature_id, signature,
+    count(*)                                        AS lines,
+    count(DISTINCT nullif(instance_id, 'NONE'))     AS instances,
+    count(DISTINCT nullif(req_id, 'NONE'))          AS requests,
+    count(*) FILTER (WHERE status >= 400)           AS http_errors
+FROM os_sig
+GROUP BY date_trunc('hour', ts), team, service, logger, level, signature_id, signature;
+
+GRANT SELECT ON lead_bgl_daily          TO exhibit_lead;
+GRANT SELECT ON lead_os_hourly          TO exhibit_lead;
+GRANT SELECT ON bgl_incident            TO exhibit_lead;
+GRANT SELECT ON bgl_signature_incidents TO exhibit_lead;
+GRANT SELECT ON os_instance_durations   TO exhibit_lead;
+GRANT SELECT ON owner_map               TO exhibit_lead;
+GRANT SELECT ON lead_bgl_daily          TO exhibit_engineer;
+GRANT SELECT ON lead_os_hourly          TO exhibit_engineer;
+
+-- ---------------------------------------------------------------- manager
+-- One row per BGL alert signature: blast radius (nodes, midplanes, peak nodes in one episode)
+-- and persistence (episodes at the stated 5-minute gap, active days, first/last seen).
+DROP VIEW IF EXISTS mgr_bgl_risk;
+CREATE VIEW mgr_bgl_risk AS
+WITH lines AS (
+    SELECT
+        signature_id,
+        mode(alert_category)            AS alert_category,
+        mode(component)                 AS component,
+        mode(team)                      AS team,
+        arg_max(level, level_rank)      AS worst_level,
+        count(*)                        AS alert_lines,
+        count(DISTINCT node)            AS nodes_affected,
+        count(DISTINCT midplane)        AS midplanes_affected,
+        count(DISTINCT ts::date)        AS active_days,
+        min(ts)                         AS first_seen,
+        max(ts)                         AS last_seen
+    FROM bgl_sig
+    WHERE is_alert
+    GROUP BY signature_id
+), eps AS (
+    SELECT
+        signature_id,
+        count(*)                        AS episodes_5min,
+        max(nodes)                      AS peak_nodes_per_episode,
+        max(span)                       AS longest_episode
+    FROM bgl_incident
+    GROUP BY signature_id
 )
-SELECT a.ServiceName, a.SeverityText, count(*) AS lines
-FROM otel_logs_idx a
-WHERE a.TraceId <> '' AND EXISTS (SELECT 1 FROM hit b WHERE b.TraceId = a.TraceId)
-GROUP BY a.ServiceName, a.SeverityText
-ORDER BY lines DESC
-LIMIT 10;
+SELECT
+    'BGL' AS dataset, l.signature_id, l.alert_category, l.component, l.team, l.worst_level,
+    l.alert_lines, e.episodes_5min, l.nodes_affected, l.midplanes_affected,
+    e.peak_nodes_per_episode, l.active_days, e.longest_episode, l.first_seen, l.last_seen
+FROM lines l
+JOIN eps e USING (signature_id);
 
--- =====================================================================================
--- ROLE 2 — TEAM LEAD: "which problems keep coming back?"
--- =====================================================================================
-\echo '### TEAM LEAD 2a — recurring failures by service and severity, with real trace impact'
--- NULLIF(TraceId,'') matters: empty trace ids otherwise collapse into ONE distinct value and
--- every row reports "1 affected trace". This corpus has 9,999,000+ rows like that.
-SELECT ServiceName,
-       SeverityText,
-       count(*)                                AS occurrences,
-       count(DISTINCT NULLIF(TraceId, ''))     AS affected_traces,
-       min(Timestamp)                          AS first_seen,
-       max(Timestamp)                          AS last_seen
-FROM otel_logs_idx
-WHERE TraceId <> '' AND Body @@ ts_any(['failed', 'error', 'exception', 'refused', 'timeout', 'denied'])
-GROUP BY ServiceName, SeverityText
-ORDER BY occurrences DESC
-LIMIT 10;
+-- One row per OpenStack signature above INFO, per service and team. Lifecycle-duration outliers
+-- (the labelled anomalies are INFO-only) are not here: they need os_instance_durations.
+DROP VIEW IF EXISTS mgr_os_risk;
+CREATE VIEW mgr_os_risk AS
+SELECT
+    'OpenStack' AS dataset, signature_id, service, team,
+    arg_max(level, CASE level WHEN 'CRITICAL' THEN 4 WHEN 'ERROR' THEN 3
+                              WHEN 'WARNING'  THEN 2 ELSE 1 END)   AS worst_level,
+    count(*)                                                        AS lines,
+    count(DISTINCT nullif(instance_id, 'NONE'))                     AS instances_affected,
+    count(DISTINCT nullif(req_id, 'NONE'))                          AS requests_affected,
+    count(DISTINCT date_trunc('hour', ts))                          AS active_hours,
+    min(ts)                                                         AS first_seen,
+    max(ts)                                                         AS last_seen
+FROM os_sig
+WHERE level <> 'INFO'
+GROUP BY signature_id, service, team;
 
-\echo '### TEAM LEAD 2b — per-second trend (this corpus spans ~17 seconds, not days)'
--- NOTE: Timestamp is a nanosecond type; date_trunc needs an explicit cast. Without it:
---   ERROR: No function matches ... 'date_trunc(STRING_LITERAL, TIMESTAMPTZ_NS)'
-SELECT date_trunc('second', Timestamp::timestamptz)     AS second_bucket,
-       count(*)                                         AS failures,
-       count(DISTINCT NULLIF(TraceId, ''))              AS traces
-FROM otel_logs_idx
-WHERE Body @@ ts_any(['failed', 'error', 'exception', 'refused', 'timeout'])
-GROUP BY 1
-ORDER BY 1
-LIMIT 20;
+-- Whole-corpus totals per day, both datasets: component = BGL component or OpenStack service;
+-- category = BGL alert category ('-' = unlabelled) or 'NONE' for OpenStack.
+DROP VIEW IF EXISTS mgr_rollup_daily;
+CREATE VIEW mgr_rollup_daily AS
+SELECT 'BGL' AS dataset, ts::date AS day, team, component, alert_category AS category, level,
+       count(*) AS lines
+FROM bgl_ev
+GROUP BY ts::date, team, component, alert_category, level
+UNION ALL
+SELECT 'OpenStack', ts::date, team, service, 'NONE', level, count(*)
+FROM os_ev
+GROUP BY ts::date, team, service, level;
 
--- =====================================================================================
--- ROLE 3 — MANAGER: "what do we prioritise?"
--- =====================================================================================
-\echo '### MANAGER 3a — services ranked by distinct affected traces (impact, not line count)'
-SELECT ServiceName,
-       count(DISTINCT NULLIF(TraceId, '')) AS affected_traces,
-       count(*)                            AS log_lines
-FROM otel_logs_idx
-WHERE TraceId <> '' AND Body @@ ts_any(['failed', 'error', 'exception', 'refused', 'timeout'])
-GROUP BY ServiceName
-ORDER BY affected_traces DESC
-LIMIT 10;
+GRANT SELECT ON mgr_bgl_risk     TO exhibit_manager;
+GRANT SELECT ON mgr_os_risk      TO exhibit_manager;
+GRANT SELECT ON mgr_rollup_daily TO exhibit_manager;
+GRANT SELECT ON mgr_bgl_risk     TO exhibit_lead;
+GRANT SELECT ON mgr_os_risk      TO exhibit_lead;
+GRANT SELECT ON mgr_rollup_daily TO exhibit_lead;
+GRANT SELECT ON mgr_bgl_risk     TO exhibit_engineer;
+GRANT SELECT ON mgr_os_risk      TO exhibit_engineer;
+GRANT SELECT ON mgr_rollup_daily TO exhibit_engineer;
 
-\echo '### MANAGER 3b — blast radius: how many distinct services each failing trace touches'
-SELECT services_touched, count(*) AS traces_in_bucket
-FROM (
-  SELECT TraceId, count(DISTINCT ServiceName) AS services_touched
-  FROM otel_logs_idx
-  WHERE TraceId <> '' AND Body @@ ts_any(['failed', 'error', 'exception', 'refused', 'timeout'])
-  GROUP BY TraceId
-) t
-GROUP BY services_touched
-ORDER BY services_touched;
+-- ---------------------------------------------------------------- scope proof
+\o
+\echo '--- role scope: what each role can read (counts through its own views) ---'
+SET ROLE exhibit_engineer;
+SELECT 'engineer' AS role, (SELECT count(*) FROM bgl_idx WHERE content @@ 'ciod') AS bgl_idx_ciod,
+       (SELECT count(*) FROM os_ev) AS os_ev_rows;
+RESET ROLE;
+SET ROLE exhibit_lead;
+SELECT 'lead' AS role, (SELECT sum(lines) FROM lead_bgl_daily) AS bgl_lines,
+       (SELECT sum(lines) FROM lead_os_hourly) AS os_lines;
+RESET ROLE;
+SET ROLE exhibit_manager;
+SELECT 'manager' AS role, (SELECT sum(alert_lines) FROM mgr_bgl_risk) AS bgl_alert_lines,
+       (SELECT sum(episodes_5min) FROM mgr_bgl_risk) AS bgl_episodes_5min,
+       (SELECT sum(lines) FROM mgr_rollup_daily) AS all_lines;
+RESET ROLE;
 
-\echo '### MANAGER 3c — the one-line verdict the agent may phrase, never compute'
-SELECT count(DISTINCT NULLIF(TraceId, ''))  AS traces_affected,
-       count(DISTINCT NULLIF(ServiceName, '')) AS services_involved,
-       min(Timestamp)                       AS incident_start,
-       max(Timestamp)                       AS incident_end
-FROM otel_logs_idx
-WHERE TraceId <> '' AND Body @@ ts_any(['failed', 'error', 'exception', 'refused', 'timeout']);
+\echo '--- role scope: each statement below MUST fail with permission denied ---'
+\set ON_ERROR_STOP off
+SET ROLE exhibit_lead;
+SELECT content FROM bgl_ev LIMIT 1;
+SELECT count(*) FROM bgl_idx WHERE content @@ 'ciod';
+RESET ROLE;
+SET ROLE exhibit_manager;
+SELECT content FROM bgl_ev LIMIT 1;
+SELECT signature FROM lead_bgl_daily LIMIT 1;
+SELECT count(*) FROM bgl_incident;
+RESET ROLE;
+\set ON_ERROR_STOP on

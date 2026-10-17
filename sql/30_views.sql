@@ -10,31 +10,41 @@
 -- ---------------------------------------------------------------- signatures
 -- A signature is the message with machine-specific data masked out, so that the same fault
 -- on two different nodes collapses to one row. Order matters: UUIDs first, then any digits.
+-- signature_id (12 hex of md5(signature)) names a signature without its text: the manager
+-- views in sql/50_roles.sql carry the id, never the text.
 DROP VIEW IF EXISTS bgl_sig CASCADE;
 CREATE VIEW bgl_sig AS
 SELECT
     id, ts, alert_category, is_alert, node, node_kind, rack, midplane, nodecard,
     component, level, level_rank, team,
-    regexp_replace(
-      regexp_replace(content,
-        '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
-        '{uuid}', 'g'),
-      '[0-9]+', '{n}', 'g')                     AS signature,
+    signature, left(md5(signature), 12)        AS signature_id,
     content
-FROM bgl_ev;
+FROM (
+    SELECT *,
+           regexp_replace(
+             regexp_replace(content,
+               '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+               '{uuid}', 'g'),
+             '[0-9]+', '{n}', 'g')              AS signature
+    FROM bgl_ev
+) masked;
 
 DROP VIEW IF EXISTS os_sig CASCADE;
 CREATE VIEW os_sig AS
 SELECT
     id, ts, source_file, service, logger, level, pid, req_id, tenant_id, instance_id,
     http_method, endpoint, status, resp_len, latency_s, spawn_s, build_s, team,
-    regexp_replace(
-      regexp_replace(content,
-        '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
-        '{uuid}', 'g'),
-      '[0-9]+', '{n}', 'g')                     AS signature,
+    signature, left(md5(signature), 12)        AS signature_id,
     content
-FROM os_ev;
+FROM (
+    SELECT *,
+           regexp_replace(
+             regexp_replace(content,
+               '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+               '{uuid}', 'g'),
+             '[0-9]+', '{n}', 'g')              AS signature
+    FROM os_ev
+) masked;
 
 -- ---------------------------------------------------------------- episodes
 -- THE CORE FINDING: an incident is not a line. A new episode starts when the same
@@ -58,7 +68,7 @@ FROM marked;
 DROP VIEW IF EXISTS bgl_incident CASCADE;
 CREATE VIEW bgl_incident AS
 SELECT
-    signature, midplane, episode_no,
+    signature_id, signature, midplane, episode_no,
     count(*)                    AS lines,
     count(DISTINCT node)        AS nodes,
     min(ts)                     AS started,
@@ -68,13 +78,13 @@ SELECT
     min(component)              AS component,
     min(team)                   AS team
 FROM bgl_episode
-GROUP BY signature, midplane, episode_no;
+GROUP BY signature_id, signature, midplane, episode_no;
 
 -- per-signature rollup: lines vs peak blast radius vs episode count
 DROP VIEW IF EXISTS bgl_signature_incidents CASCADE;
 CREATE VIEW bgl_signature_incidents AS
 SELECT
-    signature,
+    signature_id, signature,
     count(*)        AS episodes,
     sum(lines)      AS lines,
     max(nodes)      AS peak_nodes,
@@ -83,7 +93,7 @@ SELECT
     min(started)    AS first_seen,
     max(ended)      AS last_seen
 FROM bgl_incident
-GROUP BY signature;
+GROUP BY signature_id, signature;
 
 -- ---------------------------------------------------------------- OpenStack durations
 -- The labelled anomalies are invisible to any level filter or latency percentile; they

@@ -65,7 +65,8 @@ needs no mount.
 | `sql/20_indexes.sql` | Dictionary + `bgl_idx` / `os_idx` | done, runs in 5.6 s |
 | `sql/30_views.sql` | Signatures, episodes, incidents, durations | done |
 | `sql/99_smoke.sql` | The headline numbers, for verification | done |
-| `sql/50_roles.sql` | Role views + GRANTs | **needs porting** to the new tables |
+| `sql/50_roles.sql` | Role views + GRANTs: engineer, lead, manager; scope enforced in the database | done, runs in 1.4 s; part of `make bootstrap` |
+| `tests/golden/headline_numbers.sql` | Independent SQL for the headline numbers (verifier-written) | done |
 | `scripts/parse.py` | BGL + OpenStack → Parquet (zero lines lost) | done |
 | `scripts/md2pdf.py` | Markdown → PDF, for the plan and the write-ups | done |
 | `data/ownership.csv` | **The team-ownership table** (see below) | done |

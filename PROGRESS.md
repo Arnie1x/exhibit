@@ -64,6 +64,18 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
   | Fleet day 2005-06-14 / 2005-06-13 | 49,154 on 22,529 / 17,409 on 16,644 | same | MATCH |
   | `make smoke` §4b computes, not literals | literals | 152,183 / 1 vs 49,154 / 22,529 | fixed |
 
+- **Item 3, roles (Sat 17 Oct, 12:25–12:55).** `sql/50_roles.sql` ported from the OTel corpus to `bgl_ev`/`os_ev`. Three LOGIN roles (no password: trust auth on loopback), created once with psql `\if` (no `CREATE ROLE IF NOT EXISTS` or `DROP OWNED BY` here) and never dropped; views dropped and recreated each run; one GRANT per table (no lists). `sql/30_views.sql` gains `signature_id` (12 hex of `md5(signature)`) on `bgl_sig`, `os_sig`, `bgl_incident` and `bgl_signature_incidents`, so the manager can name a problem without its text. `make bootstrap` now ends with `roles`.
+
+  | Acceptance (item 3) | Result |
+  | --- | --- |
+  | Engineer: raw lines and search on `bgl_idx` by name | `bgl_idx @@ 'ciod'` → 350,567 as `exhibit_engineer`; SELECT on every table and view |
+  | Lead: signatures by team, trend, incidents; no raw lines | `lead_bgl_daily` (68,952 rows, sums to 4,747,963), `lead_os_hourly` (2,046 rows, 207,812), `bgl_incident`, `bgl_signature_incidents`, `os_instance_durations`, `owner_map`, `mgr_*`; `bgl_ev` and `bgl_idx` refused |
+  | Manager: no log text, keeps component and team | `mgr_bgl_risk` (100 signatures, 348,460 alert lines, 19,250 episodes), `mgr_os_risk` (29 rows, 3,306 lines above INFO), `mgr_rollup_daily` (4,955,775 lines); columns hold no `content`, `signature`, `node` or `logger`; `bgl_ev`, `lead_bgl_daily` and `bgl_incident` refused |
+  | Access matrix (16 relations × 3 roles) | engineer 16 · lead 10 · manager 3, exactly as designed |
+  | Idempotent | two full rebuilds (derive → index → views → roles, 26 s together) and a roles-only re-run print identical output |
+  | Headline numbers after the view change | 348,460 → 19,250 → 1,377 unchanged; 152,183 / 1 vs 49,154 / 22,529 |
+  | Speed | every role view answers in under 300 ms (`lead_bgl_daily` 290 ms, `mgr_bgl_risk` 256 ms) |
+
 ## Decisions
 
 - The team plan governs schedule, split and stage numbers; `docs/build-plan.md` is the design reference.
@@ -94,6 +106,13 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 0–1 (re-checked on a second
 - **Workspace indexes are back on the table (your optional `create_index` / `drop_index`).** On pattern B a partial inverted index restricts when named: `CREATE INDEX <name> ON bgl_ev USING inverted (id, content log_text, ts, …) WHERE <predicate>`, then `VACUUM (REFRESH_TABLE) bgl_ev`, then `FROM <name> WHERE content @@ …` returns only rows matching the predicate. The win is build time (about a fifth for a 9% window), not query time (about 0.4 ms). `sdb_indexes()` does not show the predicate, so the tool must record it. PLAN.md §14 item 4 and §16 still say "no effect"; yours to update. Details: `docs/capabilities.md` §3.
 - `make probe` works again (`PSQL=… DATA=…` pass through); no change to your code.
 - **The one-node burst number in PLAN.md is wrong: 152,183, not 136,209** (verified twice, `tests/golden/headline_numbers.sql`). PLAN.md is yours, so I have not touched it. Lines to change: 124 (table row: "2005-06-11 17:17 → 23:39 | 152,183 | 1"), 127 ("39%" → "44% of all alert lines … in under six and a half hours"), 308 (W1 engineer: "one node emitting 152,183 lines in 6h22m"), 497 (appendix). The comparison is stronger, not weaker: 152,183 lines on 1 node against 49,154 on 22,529. Fixed in my files: `CLAUDE.md`, README (also 18,770 → 19,250 episodes), `docs/build-plan.md` §0, `docs/data-notes.md`, `sql/99_smoke.sql`. Any slide or video script that has 136,209 or "5h43m" needs the same change.
+- **Roles are in the database now (`sql/50_roles.sql`); `datasets.py` needs the per-role relations.** Logins `exhibit_engineer`, `exhibit_lead`, `exhibit_manager` (the names in `.env.example`), no password. Connect as the role, or as `postgres` and `SET ROLE`.
+  - engineer: unchanged, everything you query today, including `bgl_idx` / `os_idx` by name.
+  - lead: no per-line relation and **no full-text search** (the database refuses `bgl_idx`, because a search on an index is checked against `bgl_ev`). Use `lead_bgl_daily` (day, team, component, level, alert_category, is_alert, signature_id, signature, lines, nodes, midplanes), `lead_os_hourly` (hour, team, service, logger, level, signature_id, signature, lines, instances, requests, http_errors), `bgl_incident`, `bgl_signature_incidents`, `os_instance_durations`, `owner_map`. `search_logs` for the lead should return "not permitted for this role". `nodes` / `instances` / `requests` are distinct per bucket: never sum them.
+  - manager: `mgr_bgl_risk` (signature_id, alert_category, component, team, worst_level, alert_lines, episodes_5min, nodes_affected, midplanes_affected, peak_nodes_per_episode, active_days, longest_episode, first/last_seen), `mgr_os_risk` (signature_id, service, team, worst_level, lines, instances_affected, requests_affected, active_hours, first/last_seen; above INFO only), `mgr_rollup_daily` (dataset, day, team, component, category, level, lines). A problem is named by `signature_id` + `alert_category` + component + team, never by text. The views carry factors only; the ranking by blast radius and persistence is your `top_signatures` `rank_by`.
+  - New column `signature_id` on `bgl_sig`, `os_sig`, `bgl_incident`, `bgl_signature_incidents`: the join key between the lead's and the manager's views.
+  - Your evidence ledger: every role needs `SELECT` / `INSERT` on `exhibit_evidence` once it exists. Add the grants to `sql/50_roles.sql` (one table per GRANT statement) or tell me the table name and I will.
+  - `make bootstrap` now runs `roles` last; `sql/30_views.sql`'s `DROP … CASCADE` removes the role views, so never run views without roles after it.
 - **`statement_timeout` is not enforced by the server** (it warns and runs on). Rule 9's 30 s limit on tool paths has to be enforced in your code: e.g. a timer that calls `conn.cancel()`, or run the query in a thread and cancel on timeout. Do not rely on `SET statement_timeout`.
 
 ## Open issues

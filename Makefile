@@ -44,7 +44,7 @@ views: ## signatures, incidents, episodes, durations, role views
 roles: ## role views + GRANTs (scope enforced in the database)
 	$(PSQL) -f sql/50_roles.sql
 
-bootstrap: derive index views ## full rebuild from raw Parquet (idempotent, ~20 s)
+bootstrap: derive index views roles ## full rebuild from raw Parquet (idempotent, ~20 s); roles last, views' CASCADE drops them
 
 smoke: ## the three headline numbers, printed for comparison
 	$(PSQL) -f sql/99_smoke.sql
