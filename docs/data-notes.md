@@ -23,6 +23,17 @@ not a fixed field index. That single observation is what took parity from 99.27%
 
 Columns emitted: `dataset, label, epoch, date, node, timestamp, node_repeat, log_type, component, level, content`.
 
+**`ts` is US Pacific wall-clock time; `epoch` is UTC** (measured 17 Oct). `epoch − ts` is 25,200 s
+(UTC−7, PDT) for 3,669,612 rows up to 2005-10-30 01:18, and 28,800 s (UTC−8, PST) for 1,078,351 rows
+from 01:20 on; ±1 s is rounding of the fractional seconds. The hour 01:00–02:00 on 2005-10-30 occurs
+twice: 49 rows (11 PDT, 38 PST), **none of them alerts**, so episodes are unaffected. Never compare
+`bgl_ev.ts` with a UTC time without converting.
+
+```sql
+SELECT (epoch - extract(epoch FROM "timestamp"::timestamp))::BIGINT AS epoch_minus_ts_s, count(*)
+FROM read_parquet('/data/loghub/bgl.parquet') GROUP BY 1 ORDER BY 2 DESC;
+```
+
 ## OpenStack
 
 `dataset, origin_file, source, service, timestamp, pid, level, logger, request_id, user_id,

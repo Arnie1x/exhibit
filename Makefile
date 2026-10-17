@@ -29,8 +29,8 @@ fetch: ## download + unpack the two Loghub archives (63 MB, ~800 MB unpacked) in
 parse: ## raw .log -> Parquet in data/loghub/ (= $(DATA) in the container; parity in docs/data-notes.md)
 	uv run --no-project --with pyarrow python -X utf8 scripts/parse.py --in data/loghub --out data/loghub
 
-probe: ## re-measure SereneDB capabilities (Stage 0; the file docs/capabilities.md is the result)
-	$(PSQL) -f sql/00_probe.sql
+probe: ## re-measure docs/capabilities.md against the engine; DRIFT lines mean the doc changes
+	PSQL='$(PSQL)' DATA='$(DATA)' bash scripts/probe_capabilities.sh
 
 derive: ## raw Parquet -> bgl_ev, os_ev, owner_map
 	$(PSQL) -v data='$(DATA)' -v map='$(MAP)' -f sql/10_derive.sql

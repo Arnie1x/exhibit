@@ -4,6 +4,15 @@ Probed against the live instance, arm64, 2 vCPU / 12 GB, database `postgres`. Ev
 statement that was executed; PASS/FAIL is what the engine returned, not what the docs say.
 Rebuild it with `make probe`; if a row disagrees, the measurement wins and this file changes.
 
+**Re-probed Sat 17 Oct, 09:55 UTC** (Adnan) on a second machine: Windows 11, Docker Desktop
+29.7.2, the amd64 build of `serenedb/serenedb:26.09.1.3` (`sha256:018a3187c193…`), 16 vCPU and
+7.6 GB for the Docker VM. `scripts/probe_capabilities.sh` now checks **90 rows** against the
+outcomes this file states and prints `DRIFT` where they differ: **0 drift** after the two
+corrections below (the partial index, §3; search tables, §1). Two consecutive runs gave identical
+output apart from timings. Read-only probes run in `postgres` against `bgl_ev`/`bgl_idx`/`os_ev`/
+`os_idx`; everything that creates objects runs in a database `exhibit_probe` that the script
+recreates and drops.
+
 Why the version matters: `26.10.x` releases are **amd64-only**, so an ARM box is pinned to
 **26.09.1.3**. Any docs statement about a feature added after 26.09 may not hold here.
 
@@ -15,8 +24,10 @@ This decides the schema, so it was tested four ways.
 |---|---|---|
 | Plain table, **no** inverted index | **FAIL** | `TSQUERY expression evaluated outside an @@ match against an inverted-indexed column.` |
 | Plain table, **with** a `USING inverted` index attached | **FAIL** | same error — the index does not make the table addressable |
-| The **index relation itself**, named in `FROM` | **PASS** | `SELECT count(*) FROM probe_idx WHERE content @@ 'parity'` → 1 |
-| A table created `WITH (storage = 'search')` | **PASS** | `SELECT count(*) FROM probe_search WHERE content @@ 'parity'` → 121,498 |
+| The **index relation itself**, named in `FROM` | **PASS** | `SELECT count(*) FROM probe_idx WHERE content @@ 'parity'` → 1; `FROM bgl_idx` → 121,498 |
+| A table created `WITH (storage = 'search')`, inverted index created **before** the rows arrive | **PASS** | `SELECT count(*) FROM probe_search WHERE content @@ 'parity'` → 121,498 |
+| Search table, inverted index created **after** the rows (INSERT then `CREATE INDEX`, or CTAS) | **0 rows, no error** | the index and the table both return 0 for `@@ 'parity'`; `REINDEX` refuses (`REINDEX is only supported for view-backed inverted indexes`). Re-probe 17 Oct |
+| Search table with **no** inverted index | **FAIL** | `@@ requires an inverted-indexed column on one side` |
 
 **Conclusion.** `@@` must run against an inverted-indexed relation: either the index relation by
 name (`*_idx`), or a search table. Adding an index to a plain derived table does **not** make that
@@ -32,7 +43,9 @@ The vendor's own docs, returned by `sdb_docs.search`, agree:
 Two workable patterns; we use **B**:
 
 - **A — search tables.** `CREATE TABLE t WITH (storage = 'search')` + index; `@@` works on the table
-  name. Fewer moving parts; the table *is* the indexed relation.
+  name. Fewer moving parts; the table *is* the indexed relation. But the index must exist before
+  the rows arrive (an index created on a loaded search table finds nothing), and partial indexes
+  ignore their predicate here (§3).
 - **B — plain derived tables + separate index relation.** Aggregation on `bgl_ev` / `os_ev`, every
   full-text predicate on `bgl_idx` / `os_idx`.
 
@@ -49,9 +62,11 @@ Two workable patterns; we use **B**:
 | `to_tsquery` (Lucene), `websearch_to_tsquery` | PASS — both 152,734 |
 | `ts_dict_agg`, `ts_dict_count` (facets, significant terms) | PASS |
 | `ts_highlight(content, ts_offsets(content))` | PASS — returns `<b>…</b>` markup, **but only with an `@@` in the same sub-query** |
-| `BM25(<index>.tableoid)` | PASS — 1.92 |
+| `BM25(<index>.tableoid)` | PASS — 1.92 on the old table, 2.5686417 on `bgl_idx` (first row of an unordered `LIMIT 1`: not a stable value) |
 | `percentile_cont(0.95) WITHIN GROUP (ORDER BY col)`, `quantile_cont` | PASS — both 0.3818 |
 | `date_bin`, `date_trunc`, `generate_series`, `regr_slope`, `GROUPING SETS`, `GROUP BY ALL` | PASS |
+| `date_trunc` on our `TIMESTAMP` columns (`bgl_ev.ts`, `os_ev.ts`) | PASS **without a cast**: `date_trunc('day', min(ts))` → `2005-06-03 00:00:00`. The `::timestamptz` rule is for nanosecond timestamps (the OTel corpus's `TIMESTAMP_NS`) and for `'week'` buckets we cast anyway |
+| `GROUP BY` one key on an index relation | dictionary-served: `EXPLAIN SELECT component, count(*) FROM bgl_idx GROUP BY component` shows `TsDict: component` |
 | `LAG`, `SUM() OVER (… ROWS UNBOUNDED PRECEDING)` | PASS — the episode algorithm runs |
 | `EXTRACT(epoch FROM ts)`, `ts + INTERVAL '5 minutes'` | PASS |
 | Array literals `[1,2,3]` and `ARRAY[1,2,3]` | PASS — both |
@@ -65,7 +80,51 @@ Two workable patterns; we use **B**:
 |---|---|---|
 | `CREATE TEXT SEARCH DICTIONARY log_text AS split_text(case := 'lower') WITH (frequency, position, offset)` | **syntax error at or near "AS"** | The documented parenthesised form: `CREATE TEXT SEARCH DICTIONARY log_text (template = 'text', locale = 'en_US.UTF-8', case = 'lower', stemming = false, accent = false, frequency = true, position = true)` |
 | `sdb_metrics(num_docs, index_size)` gives index build size | **No such rows.** `sdb_metrics` columns are `(metric, value, description, relation_id)` and its rows are connection/refresh/compaction counters. `sdb_indexes()` has no size or row count. `pg_class` reports `relpages = 0`, `reltuples = -1` for these indexes. | Measure cost by wall-clock build time and the data directory. Never promise size numbers we cannot produce |
-| Partial inverted index (`… USING inverted (…) WHERE ts >= …`) restricts the index | **No measurable effect.** Naming it returns the full count (121,498) where the same window predicate against the table returns 0; `EXPLAIN` chooses the full index and applies `ts` as a **Column Filter**; timing identical (4.19 ms vs 3.99 ms). | Keep workspace indexes **probe-gated**, not a 2-hour commitment |
+| Partial inverted index (`… USING inverted (…) WHERE ts >= …`) restricts the index | **Corrected 17 Oct: it restricts on pattern B, and is ignored only on a search table.** The first probe used a search table (pattern A): naming the partial index returned the full count (121,498), `EXPLAIN` on the table query picked the table's own index, timing 4.19 vs 3.99 ms. That still reproduces on a search table. On a plain table with a named index relation (how `bgl_idx` is built) the predicate holds; statements and results below | Workspace indexes are **viable on pattern B** (a partial index per window or team, queried by name). Report the measured build saving, not a query speedup |
+| `REINDEX INDEX` on a table-backed index | **FAIL** — `REINDEX is only supported for view-backed inverted indexes` | Rebuild a table-backed index with `DROP INDEX` + `CREATE INDEX` (what `sql/20_indexes.sql` does) |
+
+**The partial-index re-measurement** (17 Oct, `make probe` §5; scratch copy of BGL as
+`p_ev(id, ts, content)`, 4,747,963 rows, dictionary `log_text`; window `ts >= TIMESTAMP '2005-12-01'`
+holds 424,614 rows):
+
+```sql
+CREATE INDEX p_full ON p_ev USING inverted (id, content log_text, ts);                                    -- 1,191 ms
+CREATE INDEX p_part ON p_ev USING inverted (id, content log_text, ts) WHERE ts >= TIMESTAMP '2005-12-01'; --   239 ms
+VACUUM (REFRESH_TABLE) p_ev;
+SELECT count(*) FROM p_full WHERE content @@ 'parity';                                          -- 121,498
+SELECT count(*) FROM p_full WHERE content @@ 'parity' AND ts >= TIMESTAMP '2005-12-01';         --  34,056  (truth)
+SELECT count(*) FROM p_part WHERE content @@ 'parity';                                          --  34,056  (= truth)
+SELECT count(*) FROM p_part WHERE content @@ 'parity' AND ts <  TIMESTAMP '2005-12-01';         --       0
+EXPLAIN SELECT count(*) FROM p_part WHERE content @@ 'parity';                                  -- IRESEARCH_SCAN, Index: p_part
+```
+
+| Try to break it | Result |
+|---|---|
+| Partial index created on the **empty** table, rows inserted afterwards | 34,056 — membership applied on INSERT |
+| Predicate that matches no row (`ts >= '2026-01-01'`) | 0 |
+| `UPDATE` moves one `parity` row from November into the window | 34,057 — membership follows DML, as the bundled docs say |
+| Same partial index on a **search table** (`storage = 'search'`, indexes created before the INSERT) | 121,498 named, rows outside the predicate > 0 (87,443 in the probe run, 87,442 in a hand run: unstable by one) — **predicate ignored** |
+| Timing, median of 21 runs in one psql session | partial named 1.60–1.84 ms vs full + window 1.96–2.29 ms over three runs: the ranges do not overlap, but the gain is about 0.4 ms per query |
+
+The saving is in the **build**: 239–315 ms for the window against 1,163–1,248 ms for the whole
+corpus over three runs, because the partial index holds 424,614 of 4,747,963 rows (8.9%). The
+bundled 26.09.1.3 docs agree (`sql/statements/create_index/inverted.md`, "Partial indexes"):
+*queries against the index only ever see matching rows*. `sdb_indexes().sql` does **not** show the
+predicate (it prints `CREATE INDEX p_part ON public.p_ev USING inverted ();`), so record each
+workspace index's predicate ourselves.
+
+**The dictionary re-measurement** (17 Oct, `make probe` §3–4) — the row above holds:
+
+| Statement | Result |
+|---|---|
+| `CREATE TEXT SEARCH DICTIONARY probe_a AS split_text(case := 'lower') WITH (frequency, position, offset)` | `ERROR: syntax error at or near "AS"` |
+| `CREATE TEXT SEARCH DICTIONARY probe_b (template = 'text', locale = 'en_US.UTF-8', case = 'lower', stemming = false, accent = false, frequency = true, position = true)` | PASS |
+| the same with `offset = true` | PASS |
+| `(template = 'split_by_non_alpha', case = 'lower', frequency = true, norm = true, position = true)` | PASS |
+| `ts_lexize('log_text', …)` on the five inputs in §5 | identical to the §5 table, token for token |
+| `ts_lexize('log_text', 'failed failures interrupts')` | `{failed,failures,interrupts}` — `stemming = false` holds (a `stemming = true` copy gives `{fail,failur,interrupt}`) |
+| `bgl_idx … @@ 'PARITY'` | 121,498, same as `'parity'` — `case = 'lower'` applies to the query too |
+| bundled docs, `sdb_docs.search('CREATE TEXT SEARCH DICTIONARY template', 3)` | `sql/statements/create_text_search_dictionary/index.md`: "A dictionary must name exactly one template through the TEMPLATE option" — the parenthesised form is the documented one on this version |
 | `PREPARE name(VARCHAR) AS … $1` in psql | `TypeList for prepared statement has not been implemented` | A **psql** limitation only — psycopg's binding works (§6). Do not conclude parameters are broken from it |
 | `CREATE FUNCTION … LANGUAGE sql SECURITY DEFINER` enforces owner privileges | **Not honoured** — the definer function still failed with `permission denied for table bgl_ev` | Parameterised search is a **view + an outer predicate**, never a definer function |
 
@@ -124,7 +183,7 @@ index.
 
 | Track | Status after probing |
 |---|---|
-| Workspace indexes (9a) | **At risk.** Both mechanisms it leans on (partial-index restriction, `sdb_metrics` size) do not behave as documented here. Probe-gate it; expect to report a negative result |
+| Workspace indexes (9a) | **Viable on pattern B since the 17 Oct re-probe.** A partial index restricts when it is named (34,056 = the windowed count) and builds in about a fifth of the time (239 vs 1,191 ms for 8.9% of the rows); queries gain about 0.4 ms. Still no size metric (`sdb_metrics`), so report build time and row counts, never bytes. The bonus order in the team plan §14 is unchanged |
 | Role-scoped access (9b) | **Sound and now verified end to end** — including the search path (§6). `CREATE ROLE … LOGIN PASSWORD`, `GRANT`, column grants, `SET ROLE` all work |
 | Huge datasets (9c) | **Sound.** The engine reads remote Parquet over HTTPS directly (1B rows, 0.8 s for a slice, no download); index the **view** and refresh with `REINDEX INDEX`. Report bytes read and build time |
 | Eval harness (9d) | **Sound and cheap.** Golden SQL + tool-selection scoring needs nothing exotic |
@@ -134,10 +193,22 @@ index.
 ```bash
 docker run -d --name serenedb -p 127.0.0.1:7890:7890 -v serenedb-data:/var/lib/serenedb \
   -v "$PWD/data":/data serenedb/serenedb:26.09.1.3
-psql -h 127.0.0.1 -p 7890 -U postgres -f sql/10_derive.sql    # 14 s
-psql -h 127.0.0.1 -p 7890 -U postgres -f sql/20_indexes.sql   # 5.6 s
+psql -h 127.0.0.1 -p 7890 -U postgres -v data=/data/loghub -v map=/data/ownership.csv \
+     -f sql/10_derive.sql                                       # 14 s (8.7 s on 16 vCPU)
+psql -h 127.0.0.1 -p 7890 -U postgres -f sql/20_indexes.sql   # 5.6 s (2.4 s)
 psql -h 127.0.0.1 -p 7890 -U postgres -f sql/30_views.sql
 psql -h 127.0.0.1 -p 7890 -U postgres -f sql/99_smoke.sql     # headline numbers
+bash scripts/probe_capabilities.sh                            # this file, re-measured (~90 s)
+```
+
+No `psql` or `make` on the host (Windows): use the client inside the container and pipe the
+file in, with Git Bash's path rewriting off (it turns `/data/...` into `C:/Program Files/Git/data/...`):
+
+```bash
+export MSYS_NO_PATHCONV=1
+docker exec -i serenedb psql -h 127.0.0.1 -p 7890 -U postgres -v ON_ERROR_STOP=1 \
+  -v data=/data/loghub -v map=/data/ownership.csv -f - < sql/10_derive.sql
+PSQL='docker exec -i serenedb psql -h 127.0.0.1 -p 7890 -U postgres' bash scripts/probe_capabilities.sh
 ```
 
 Loads: **BGL 4,747,963 rows** (zero lines lost), **OpenStack 207,812 of 207,820** (8 unusable),
