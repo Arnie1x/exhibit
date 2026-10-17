@@ -77,12 +77,12 @@ filesystem, hence the `-v "$PWD/data":/data` mount; remote HTTP/S3 Parquet needs
 | `tests/golden/headline_numbers.sql` | Independent SQL for the headline numbers (verifier-written) | done |
 | `scripts/parse.py` | BGL + OpenStack → Parquet (zero lines lost) | done |
 | `scripts/md2pdf.py` | Markdown → PDF, for the plan and the write-ups | done |
-| `src/exhibit/` | **The MCP server**: persona-aware registry, result envelope, eleven tools, the evidence ledger | done, 94/94 checks |
+| `src/exhibit/` | **The MCP server**: persona-aware registry, result envelope, twelve tools (incl. the answer lints), the evidence ledger | done, 101/101 checks |
 | `scripts/stage2_mcp_client.py` | Stock-client acceptance check — launches the server over stdio and uses it | done |
 | `pyproject.toml` | uv project; `mcp` 2.x (`MCPServer`) + psycopg 3 | done |
 | `data/ownership.csv` | **The team-ownership table** (see below) | done |
 | `sql/90_queries.sql` | The reference investigations, as the demo runs them | Stage 3 |
-| `evals/` | The evaluation set: questions + golden SQL | Stage 5 |
+| `evals/` | **The evaluation set**: 15 questions, hand-written golden SQL, one score | done, `make eval` → 15/15 |
 
 Nothing in this repo is aspirational: a row marked *done* has been executed on the live corpus,
 and the stage numbers refer to `PLAN.md` §11.
@@ -95,7 +95,7 @@ make check     # acceptance: 94 checks against measured numbers, then a stock MC
 make mcp       # run the server on stdio; point any MCP client at it
 ```
 
-The server exposes eleven tools, each returning an **envelope** — the rows plus the SQL, the bound
+The server exposes twelve tools, each returning an **envelope** — the rows plus the SQL, the bound
 parameters, the operator that produced the counts, the true match total, a truncation flag and a
 stable evidence id:
 
@@ -112,6 +112,7 @@ stable evidence id:
 | `nearby_events` | what else was happening around one line (engineer only) |
 | `what_changed` | foreground against baseline, rate-normalised |
 | `verify_evidence` | re-runs any stored answer and compares it hash for hash |
+| `lint_answer` | checks an answer before it goes out: the manager's vocabulary rule, and every figure cited to evidence that resolves |
 
 Every tool takes a **persona** — and that is not a label. Each persona runs under its own database
 role, so scope is enforced by the engine rather than by a prompt:
@@ -195,12 +196,23 @@ Coverage after the join: **100%** of both corpora. BGL's `KERNEL` component alon
 ```bash
 make bootstrap smoke   # loads, indexes, and prints the three headline numbers
 make demo              # runs the two worked investigations end to end
-make eval              # scores the agent's answers against golden SQL
+make eval              # 15 questions, every figure against hand-written golden SQL: 15/15
 ```
 
 Judges can reproduce every claim from a clean checkout: the derive, the index, the
 investigations and the agent are all in this repo, and `make clean-check` runs the whole
 sequence in a fresh clone.
+
+## The answer lints
+
+Two rules are enforced in code rather than promised in prose (`src/exhibit/lint.py`, tool
+`lint_answer`): **a manager answer may not claim money, downtime, customers, revenue or an SLA**
+(quoting a log line is fine, claiming is not), and **every figure must cite evidence that
+resolves** — with `deep=true` the cited statement is re-run and the figure has to be supported by
+its own result, its aggregates, or the total the envelope reported. An answer that fails is
+rejected with one finding per problem; the lint never rewrites the answer, because a lint that
+edits is a lint nobody can check. It carries no evidence id of its own: the ledger holds
+re-runnable statements, and a lint is an opinion about prose.
 
 ## Disclosure
 

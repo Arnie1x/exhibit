@@ -68,8 +68,8 @@ demo: ## the two worked investigations, exactly as the video runs them
 bench: ## optional: index a remote Parquet slice, measure rows/s (huge-datasets award)
 	$(PSQL) < sql/70_bench.sql
 
-eval: ## score agent answers against golden SQL
-	python3 evals/run_eval.py
+eval: ## score the question bank against the hand-written golden SQL
+	uv run python evals/run_eval.py
 
 clean-check: ## clone into a temp dir and run the whole sequence from scratch
 	@tmp=$$(mktemp -d) && git clone -q "$(PWD)" "$$tmp/exhibit" && cd "$$tmp/exhibit" && \

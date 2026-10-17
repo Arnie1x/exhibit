@@ -19,7 +19,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from . import db
+from . import db, ledger
 from .datasets import Persona, PersonaView, persona as persona_meta
 from .envelope import Envelope
 
@@ -103,6 +103,19 @@ def _envelope(tool: str, dataset_key: str, p: Persona, sql: str, **kw) -> dict:
     env = Envelope(tool=tool, dataset=dataset_key, sql=sql, persona=p.key, role=p.role, **kw)
     out = env.as_dict()
     out["headline"] = env.headline()
+    # Every answer is evidence, including the ones from the three tools that predate the ledger.
+    # An id a caller can cite but that resolves to nothing is worse than no id at all: the answer
+    # contract says "every figure cites an evidence id", and a citation that cannot be checked
+    # quietly turns the contract into decoration.
+    try:
+        ledger.record(out, sql, list(kw.get("params") or []))
+        out["ledger"] = f"recorded as {out['evidence_id']}"
+    except Exception as exc:                     # noqa: BLE001 - a bookkeeping failure must not
+        out["ledger"] = f"not recorded: {type(exc).__name__}"   # eat the answer
+        out["notes"].append(
+            f"the evidence ledger write failed ({exc}); the statement above is still the answer "
+            f"and re-running it by hand reproduces these rows"
+        )
     return out
 
 

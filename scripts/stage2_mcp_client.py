@@ -127,6 +127,21 @@ async def main() -> int:
             print(f"  {top['signature']} on {top['midplane']}: {top['nodes']} nodes, "
                   f"{top['lines']:,} lines, {top['episodes']} episodes")
 
+            print("\nlinting a manager answer through the same client")
+            bad = (
+                "Scope: both datasets\nAnswer: this will cost downtime and revenue.\n"
+                "Observed (measured)\n- 3,394 nodes [E-0012AB]\n"
+            )
+            lin = payload(await session.call_tool("lint_answer", {"answer": bad, "persona": "manager"}))
+            print(f"  verdict: {lin['verdict']}  ({lin['counts']['reject']} rejections)")
+            for row in lin["rows"][:2]:
+                print(f"    [{row['severity']}] {row['rule']}: {row['message'][:88]}")
+            assert lin["verdict"] == "rejected"
+            good = bad.replace("cost downtime and revenue", "is the largest observed blast radius")
+            lin2 = payload(await session.call_tool("lint_answer", {"answer": good, "persona": "manager"}))
+            print(f"  after the fix: {lin2['verdict']}")
+            assert lin2["verdict"] in ("ok", "warnings")
+
             print("\nstock-client check: PASS")
             return 0
 

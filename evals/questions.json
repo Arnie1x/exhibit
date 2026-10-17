@@ -1,0 +1,145 @@
+{
+  "_about": [
+    "The eval bank: the questions the brief asks, scored against figures written by hand in",
+    "evals/golden.sql. Each question names the tool call a correct answer is built on and the",
+    "figures it must carry; the harness runs the call through the real MCP server (stdio, exactly",
+    "as a judging client would), compares every figure with the golden statement, then builds the",
+    "answer a role would send from the values that came back, cites the evidence id, and puts it",
+    "through the answer lints. It scores the tool surface and the chain from a figure to a linted",
+    "answer -- not a model's prose, and it does not pretend to.",
+    "A refusal is a scored outcome: the three negative questions at the end must be refused, by",
+    "name, with a reason."
+  ],
+  "questions": [
+    {
+      "id": "Q01",
+      "role": "engineer",
+      "question": "One machine produced a six-hour storm of the same FATAL. How many incidents does BGL hold in total, how many lines are in the deepest one, and how many machines carried it?",
+      "call": {"tool": "episodes", "args": {"dataset": "bgl", "persona": "engineer", "gap_minutes": 5, "limit": 1}},
+      "expect": {
+        "total_matches": ["golden", "q01-burst-incidents"],
+        "rows[0].lines": ["golden", "q02-burst-lines"],
+        "rows[0].nodes": ["golden", "q02b-burst-nodes"]
+      },
+      "answer": "Observed (measured)\n- {rows[0].lines:,} alert lines in a single incident on {rows[0].nodes} machine(s) [{eid}]"
+    },
+    {
+      "id": "Q02",
+      "role": "engineer",
+      "question": "How many log lines actually contain the data TLB error, across the whole corpus?",
+      "call": {"tool": "search_logs", "args": {"dataset": "bgl", "persona": "engineer", "query": "data TLB error interrupt", "limit": 1}},
+      "expect": {"total_matches": ["golden", "q03-search-total"]},
+      "answer": "Observed (measured)\n- {total_matches:,} log lines match the phrase [{eid}]"
+    },
+    {
+      "id": "Q03",
+      "role": "engineer",
+      "question": "How much does the incident count depend on the gap you choose? Give it at one minute and at sixty.",
+      "call": {"tool": "episodes", "args": {"dataset": "bgl", "persona": "engineer", "gap_minutes": 1, "limit": 1}},
+      "call2": {"tool": "episodes", "args": {"dataset": "bgl", "persona": "engineer", "gap_minutes": 60, "limit": 1}},
+      "expect": {"total_matches": ["golden", "q04-gap-1"], "call2.total_matches": ["golden", "q04b-gap-60"]},
+      "answer": "Observed (measured)\n- {total_matches:,} incidents at a one-minute gap [{eid}]\n- {call2.total_matches:,} incidents at an hour [{call2.evidence_id}]"
+    },
+    {
+      "id": "Q04",
+      "role": "engineer",
+      "question": "How many separate incidents is the data TLB error, at the usual five-minute gap?",
+      "call": {"tool": "episodes", "args": {"dataset": "bgl", "persona": "engineer", "gap_minutes": 5, "signature": "data TLB error interrupt", "limit": 1}},
+      "expect": {"total_matches": ["golden", "q05-dtlb-episodes"]},
+      "answer": "Observed (measured)\n- {total_matches} incidents of that one signature [{eid}]"
+    },
+    {
+      "id": "Q05",
+      "role": "lead",
+      "question": "What is the single busiest problem by volume in BGL, and which team owns it?",
+      "call": {"tool": "top_signatures", "args": {"dataset": "bgl", "persona": "lead", "by": "lines", "limit": 1}},
+      "expect": {"rows[0].lines": ["golden", "q06-lead-top-lines"]},
+      "answer": "Observed (measured)\n- the busiest signature carries {rows[0].lines:,} alert lines and belongs to {rows[0].team} [{eid}]"
+    },
+    {
+      "id": "Q06",
+      "role": "lead",
+      "question": "Ranked by how often things recur rather than how loud they are, what is worst?",
+      "call": {"tool": "top_signatures", "args": {"dataset": "bgl", "persona": "lead", "by": "episodes", "limit": 1}},
+      "expect": {"rows[0].episodes": ["golden", "q07-lead-top-episodes"]},
+      "answer": "Observed (measured)\n- worst by recurrence: {rows[0].episodes:,} incidents, owned by {rows[0].team} [{eid}]"
+    },
+    {
+      "id": "Q07",
+      "role": "lead",
+      "question": "Show the daily trend over the last days of the corpus. Which day does it end on, and how many lines does that day carry?",
+      "call": {"tool": "trend", "args": {"dataset": "bgl", "persona": "lead", "bucket": "day", "limit": 1}},
+      "expect": {"rows[0].bucket": "2006-01-04", "rows[0].n": ["golden", "q08-last-day-lines"]},
+      "answer": "Observed (measured)\n- the corpus ends on {rows[0].bucket} with {rows[0].n} lines [{eid}]"
+    },
+    {
+      "id": "Q08",
+      "role": "lead",
+      "question": "How many ownership rows does the team table hold, and is every key in the corpus mapped?",
+      "call": {"tool": "ownership", "args": {"persona": "lead"}},
+      "expect": {"total_matches": ["golden", "q12-ownership-rows"]},
+      "answer": "Observed (measured)\n- the ownership table holds {total_matches} rows, all resolved [{eid}]"
+    },
+    {
+      "id": "Q09",
+      "role": "manager",
+      "question": "Across both systems, which observed problem has the widest blast radius, and how many machines is that?",
+      "call": {"tool": "top_signatures", "args": {"dataset": "bgl", "persona": "manager", "by": "nodes", "limit": 1}},
+      "expect": {"rows[0].nodes": ["golden", "q09-manager-peak-blast"]},
+      "answer": "Observed (measured)\n- the widest blast radius is {rows[0].nodes:,} machines, owned by {rows[0].team} [{eid}]"
+    },
+    {
+      "id": "Q10",
+      "role": "manager",
+      "question": "Which problem deserves attention first by how often it recurs, and how many times has it recurred?",
+      "call": {"tool": "top_signatures", "args": {"dataset": "bgl", "persona": "manager", "by": "episodes", "limit": 1}},
+      "expect": {"rows[0].episodes": ["golden", "q10-manager-top-episodes"]},
+      "answer": "Observed (measured)\n- {rows[0].episodes:,} recurrences, owned by {rows[0].team} [{eid}]"
+    },
+    {
+      "id": "Q11",
+      "role": "manager",
+      "question": "How many alert lines do the observed problems account for in total?",
+      "call": {"tool": "count_events", "args": {"dataset": "bgl", "persona": "manager", "group_by": "team", "limit": 1}},
+      "expect": {"total_matches": ["golden", "q11-manager-alert-lines"]},
+      "answer": "Observed (measured)\n- {total_matches:,} alert lines in total [{eid}]"
+    },
+    {
+      "id": "Q12",
+      "role": "manager",
+      "question": "What does the busiest problem cost us in downtime and lost revenue?",
+      "call": {"tool": "durations", "args": {"persona": "manager", "limit": 1}},
+      "expect": {"refused": true, "notes_contain": "spawn_s"},
+      "refusal_why": "the manager's relation carries risk factors, not per-instance phases"
+    },
+    {
+      "id": "Q13",
+      "role": "lead",
+      "question": "Give me the weekly trend for BGL.",
+      "call": {"tool": "trend", "args": {"dataset": "bgl", "persona": "lead", "bucket": "week", "limit": 1}},
+      "expect": {"refused": true, "notes_contain": "day"},
+      "refusal_why": "the lead's relation is pre-grouped per day; the refusal names the bucket that works"
+    },
+    {
+      "id": "Q14",
+      "role": "manager",
+      "question": "Show me the ownership table so I can see who owns what.",
+      "call": {"tool": "ownership", "args": {"persona": "manager"}},
+      "expect": {"refused": true, "notes_contain": "owner_map"},
+      "refusal_why": "the manager has no grant on owner_map; its own views carry the team per row"
+    },
+    {
+      "id": "Q15",
+      "role": "manager",
+      "question": "The manager's answer must not claim impact the corpus cannot measure.",
+      "lint": {
+        "bad": "Scope: both datasets\nAnswer: this problem costs downtime and lost revenue.\nObserved (measured)\n- 22,529 machines [{eid}]",
+        "bad_verdict": "rejected",
+        "good": "Scope: both datasets\nAnswer: this is the widest observed blast radius in the corpus.\nObserved (measured)\n- 22,529 machines [{eid}]\nEvidence\n| ID |\n| {eid} |",
+        "good_verdict": "ok"
+      },
+      "call": {"tool": "top_signatures", "args": {"dataset": "bgl", "persona": "manager", "by": "nodes", "limit": 1}},
+      "expect": {"rows[0].nodes": ["golden", "q09-manager-peak-blast"]}
+    }
+  ]
+}
