@@ -133,6 +133,92 @@ SELECT
 FROM bgl_incident
 GROUP BY signature_id, signature;
 
+-- Every ranking factor per alert signature, whole corpus: the source of top_signatures
+-- (rank_by lines | episodes | nodes | blast radius | persistence) and of mgr_bgl_risk, which
+-- is this view without the signature text and the node ID.
+--   blast radius  nodes_affected: distinct nodes that ever logged the signature
+--   persistence   active_days: distinct calendar days with at least one line
+--   concentration top_node_pct: percent of the lines from the single loudest node
+-- rank_blast_radius / rank_persistence are dense ranks over the whole corpus (1 = widest,
+-- most persistent); a time-windowed ranking has to recompute them, not filter this view.
+DROP VIEW IF EXISTS bgl_signature_stats CASCADE;
+CREATE VIEW bgl_signature_stats AS
+WITH l AS (
+    SELECT
+        signature_id, signature,
+        mode(alert_category)            AS alert_category,
+        mode(component)                 AS component,
+        mode(team)                      AS team,
+        arg_max(level, level_rank)      AS worst_level,
+        count(*)                        AS alert_lines,
+        count(DISTINCT node)            AS nodes_affected,
+        count(DISTINCT midplane)        AS midplanes_affected,
+        count(DISTINCT ts::date)        AS active_days,
+        min(ts)                         AS first_seen,
+        max(ts)                         AS last_seen
+    FROM bgl_sig
+    WHERE is_alert
+    GROUP BY signature_id, signature
+), n AS (
+    -- loudest node per signature; ties go to the lower node ID so reruns agree
+    SELECT signature_id, node AS top_node, lines AS top_node_lines
+    FROM (
+        SELECT signature_id, node, count(*) AS lines,
+               row_number() OVER (PARTITION BY signature_id ORDER BY count(*) DESC, node) AS rn
+        FROM bgl_sig
+        WHERE is_alert
+        GROUP BY signature_id, node
+    ) per_node
+    WHERE rn = 1
+), e AS (
+    SELECT
+        signature_id,
+        count(*)                        AS episodes_5min,
+        max(nodes)                      AS peak_nodes_per_episode,
+        max(span)                       AS longest_episode
+    FROM bgl_incident
+    GROUP BY signature_id
+)
+SELECT
+    'BGL' AS dataset, l.signature_id, l.signature, l.alert_category, l.component, l.team,
+    l.worst_level, l.alert_lines, e.episodes_5min, l.nodes_affected, l.midplanes_affected,
+    e.peak_nodes_per_episode, l.active_days, e.longest_episode,
+    n.top_node, n.top_node_lines,
+    round(100 * n.top_node_lines::DOUBLE / l.alert_lines, 2)      AS top_node_pct,
+    dense_rank() OVER (ORDER BY l.nodes_affected DESC)             AS rank_blast_radius,
+    dense_rank() OVER (ORDER BY l.active_days DESC)                AS rank_persistence,
+    l.first_seen, l.last_seen
+FROM l
+JOIN e USING (signature_id)
+JOIN n USING (signature_id);
+
+-- Episode counts at the three stated gaps, per alert signature, at both scopes: per failure
+-- domain (signature x midplane, the bgl_episode definition) and global (signature only).
+-- A gap counts as a new episode when it is longer than the threshold; equal timestamps give a
+-- zero gap, so the counts do not depend on how ties are ordered. Sums over all signatures:
+-- 19,250 (5 min, midplane) and 1,377 (5 min, global), the make smoke §2 numbers.
+DROP VIEW IF EXISTS bgl_episode_sensitivity CASCADE;
+CREATE VIEW bgl_episode_sensitivity AS
+WITH gaps AS (
+    SELECT
+        signature_id, signature,
+        ts - LAG(ts) OVER (PARTITION BY signature, midplane ORDER BY ts) AS gap_domain,
+        ts - LAG(ts) OVER (PARTITION BY signature ORDER BY ts)           AS gap_global
+    FROM bgl_sig
+    WHERE is_alert
+)
+SELECT
+    signature_id, signature,
+    count(*)                                                                         AS alert_lines,
+    count(*) FILTER (WHERE gap_domain IS NULL OR gap_domain > INTERVAL '1 minute')   AS episodes_1min,
+    count(*) FILTER (WHERE gap_domain IS NULL OR gap_domain > INTERVAL '5 minutes')  AS episodes_5min,
+    count(*) FILTER (WHERE gap_domain IS NULL OR gap_domain > INTERVAL '60 minutes') AS episodes_60min,
+    count(*) FILTER (WHERE gap_global IS NULL OR gap_global > INTERVAL '1 minute')   AS episodes_1min_global,
+    count(*) FILTER (WHERE gap_global IS NULL OR gap_global > INTERVAL '5 minutes')  AS episodes_5min_global,
+    count(*) FILTER (WHERE gap_global IS NULL OR gap_global > INTERVAL '60 minutes') AS episodes_60min_global
+FROM gaps
+GROUP BY signature_id, signature;
+
 -- ---------------------------------------------------------------- OpenStack incidents
 -- Same idea as BGL, one level up: lines above INFO, grouped by problem; a new incident starts
 -- when the problem goes quiet for more than 5 minutes. A traceback's ~23 lines share one ts,
@@ -267,3 +353,32 @@ FROM (
     WHERE latency_s IS NOT NULL
 ) l
 GROUP BY GROUPING SETS ((file_group, source_file), (file_group));
+
+-- ---------------------------------------------------------------- ownership
+-- Lines per owning team and dataset, with the key that assigned the team (precedence
+-- logger > service > component, data/ownership.csv) and 'none' for UNOWNED. problem_lines is
+-- BGL alert lines (label <> '-') or OpenStack lines above INFO. A team can span two rows on
+-- OpenStack (logger and service matches): sum them for the team's share.
+DROP VIEW IF EXISTS ownership_coverage CASCADE;
+CREATE VIEW ownership_coverage AS
+SELECT
+    dataset, team, matched_on, lines, problem_lines,
+    round(100 * lines::DOUBLE / sum(lines) OVER (PARTITION BY dataset), 2)                       AS pct_lines,
+    round(100 * problem_lines::DOUBLE / nullif(sum(problem_lines) OVER (PARTITION BY dataset), 0), 2) AS pct_problem_lines
+FROM (
+    SELECT 'BGL' AS dataset, team,
+           CASE WHEN team = 'UNOWNED' THEN 'none' ELSE 'component' END AS matched_on,
+           count(*) AS lines, count(*) FILTER (WHERE is_alert) AS problem_lines
+    FROM bgl_ev
+    GROUP BY team
+    UNION ALL
+    SELECT 'OpenStack', e.team,
+           CASE WHEN ol.team IS NOT NULL THEN 'logger'
+                WHEN e.team <> 'UNOWNED' THEN 'service'
+                ELSE 'none' END,
+           count(*), count(*) FILTER (WHERE e.level <> 'INFO')
+    FROM os_ev e
+    LEFT JOIN owner_map ol
+           ON ol.dataset = 'OpenStack' AND ol.key_type = 'logger' AND ol.key_value = e.logger
+    GROUP BY 1, 2, 3
+) t;

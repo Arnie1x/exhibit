@@ -74,6 +74,9 @@ GRANT SELECT ON os_episode              TO exhibit_engineer;
 GRANT SELECT ON os_incident             TO exhibit_engineer;
 GRANT SELECT ON os_problem_incidents    TO exhibit_engineer;
 GRANT SELECT ON os_latency_by_file      TO exhibit_engineer;
+GRANT SELECT ON bgl_signature_stats     TO exhibit_engineer;
+GRANT SELECT ON bgl_episode_sensitivity TO exhibit_engineer;
+GRANT SELECT ON ownership_coverage      TO exhibit_engineer;
 
 -- ---------------------------------------------------------------- lead
 -- Per day (BGL, seven months) and per hour (OpenStack, 2.7 days). nodes / instances / requests
@@ -112,45 +115,24 @@ GRANT SELECT ON os_incident             TO exhibit_lead;
 GRANT SELECT ON os_problem_incidents    TO exhibit_lead;
 GRANT SELECT ON os_latency_by_file      TO exhibit_lead;
 GRANT SELECT ON owner_map               TO exhibit_lead;
+GRANT SELECT ON bgl_signature_stats     TO exhibit_lead;
+GRANT SELECT ON bgl_episode_sensitivity TO exhibit_lead;
+GRANT SELECT ON ownership_coverage      TO exhibit_lead;
 GRANT SELECT ON lead_bgl_daily          TO exhibit_engineer;
 GRANT SELECT ON lead_os_hourly          TO exhibit_engineer;
 
 -- ---------------------------------------------------------------- manager
--- One row per BGL alert signature: blast radius (nodes, midplanes, peak nodes in one episode)
--- and persistence (episodes at the stated 5-minute gap, active days, first/last seen).
+-- One row per BGL alert signature: blast radius (nodes, midplanes, peak nodes in one episode),
+-- persistence (episodes at the stated 5-minute gap, active days, first/last seen) and
+-- concentration (top_node_pct). bgl_signature_stats without the signature text and node ID.
 DROP VIEW IF EXISTS mgr_bgl_risk;
 CREATE VIEW mgr_bgl_risk AS
-WITH lines AS (
-    SELECT
-        signature_id,
-        mode(alert_category)            AS alert_category,
-        mode(component)                 AS component,
-        mode(team)                      AS team,
-        arg_max(level, level_rank)      AS worst_level,
-        count(*)                        AS alert_lines,
-        count(DISTINCT node)            AS nodes_affected,
-        count(DISTINCT midplane)        AS midplanes_affected,
-        count(DISTINCT ts::date)        AS active_days,
-        min(ts)                         AS first_seen,
-        max(ts)                         AS last_seen
-    FROM bgl_sig
-    WHERE is_alert
-    GROUP BY signature_id
-), eps AS (
-    SELECT
-        signature_id,
-        count(*)                        AS episodes_5min,
-        max(nodes)                      AS peak_nodes_per_episode,
-        max(span)                       AS longest_episode
-    FROM bgl_incident
-    GROUP BY signature_id
-)
 SELECT
-    'BGL' AS dataset, l.signature_id, l.alert_category, l.component, l.team, l.worst_level,
-    l.alert_lines, e.episodes_5min, l.nodes_affected, l.midplanes_affected,
-    e.peak_nodes_per_episode, l.active_days, e.longest_episode, l.first_seen, l.last_seen
-FROM lines l
-JOIN eps e USING (signature_id);
+    dataset, signature_id, alert_category, component, team, worst_level,
+    alert_lines, episodes_5min, nodes_affected, midplanes_affected,
+    peak_nodes_per_episode, active_days, longest_episode, top_node_pct,
+    rank_blast_radius, rank_persistence, first_seen, last_seen
+FROM bgl_signature_stats;
 
 -- One row per OpenStack problem (our label, not log text) above INFO: incidents at the stated
 -- 5-minute gap, records (a traceback is one), lines by level, requests. Lifecycle-duration
@@ -200,6 +182,8 @@ GRANT SELECT ON mgr_os_lifecycle TO exhibit_manager;
 GRANT SELECT ON mgr_os_lifecycle TO exhibit_lead;
 GRANT SELECT ON mgr_os_lifecycle TO exhibit_engineer;
 GRANT SELECT ON mgr_rollup_daily TO exhibit_manager;
+-- ownership_coverage holds teams, key types and counts only: no text, no node or logger names
+GRANT SELECT ON ownership_coverage TO exhibit_manager;
 GRANT SELECT ON mgr_bgl_risk     TO exhibit_lead;
 GRANT SELECT ON mgr_os_risk      TO exhibit_lead;
 GRANT SELECT ON mgr_rollup_daily TO exhibit_lead;
@@ -216,13 +200,16 @@ SELECT 'engineer' AS role, (SELECT count(*) FROM bgl_idx WHERE content @@ 'ciod'
 RESET ROLE;
 SET ROLE exhibit_lead;
 SELECT 'lead' AS role, (SELECT sum(lines) FROM lead_bgl_daily) AS bgl_lines,
-       (SELECT sum(lines) FROM lead_os_hourly) AS os_lines;
+       (SELECT sum(lines) FROM lead_os_hourly) AS os_lines,
+       (SELECT sum(episodes_5min) FROM bgl_episode_sensitivity) AS bgl_episodes_5min,
+       (SELECT sum(episodes_5min_global) FROM bgl_episode_sensitivity) AS bgl_episodes_5min_global;
 RESET ROLE;
 SET ROLE exhibit_manager;
 SELECT 'manager' AS role, (SELECT sum(alert_lines) FROM mgr_bgl_risk) AS bgl_alert_lines,
        (SELECT sum(episodes_5min) FROM mgr_bgl_risk) AS bgl_episodes_5min,
        (SELECT sum(lines) FROM mgr_rollup_daily) AS all_lines,
-       (SELECT sum(incidents_5min) FROM mgr_os_risk) AS os_incidents_5min;
+       (SELECT sum(incidents_5min) FROM mgr_os_risk) AS os_incidents_5min,
+       (SELECT sum(lines) FROM ownership_coverage) AS owned_lines;
 RESET ROLE;
 
 \echo '--- role scope: each statement below MUST fail with permission denied ---'
@@ -235,5 +222,6 @@ SET ROLE exhibit_manager;
 SELECT content FROM bgl_ev LIMIT 1;
 SELECT signature FROM lead_bgl_daily LIMIT 1;
 SELECT count(*) FROM bgl_incident;
+SELECT signature FROM bgl_signature_stats LIMIT 1;
 RESET ROLE;
 \set ON_ERROR_STOP on
