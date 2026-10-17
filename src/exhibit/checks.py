@@ -36,11 +36,31 @@ def main() -> int:
         db.scalar("SELECT count(*) FROM (SELECT DISTINCT signature, midplane, episode_no FROM bgl_episode) e"),
         19_250,
     )
+    # The one-node burst: measured over the WHOLE day. The 136,209 we published first was this
+    # burst cut at a 23:00 window boundary -- the trap is kept as a check so it cannot come back.
     check(
-        "the single-node burst",
+        "the one-node burst (whole day, not a window cut at 23:00)",
+        db.scalar("SELECT count(*) FROM bgl_ev WHERE is_alert "
+                  "AND ts >= TIMESTAMP '2005-06-11' AND ts < TIMESTAMP '2005-06-12'"),
+        152_183,
+    )
+    check(
+        "the burst is ONE node over 6h21m48s",
         db.scalar("SELECT count(DISTINCT node) FROM bgl_ev WHERE is_alert "
-                  "AND ts >= TIMESTAMP '2005-06-11 17:00:00' AND ts < TIMESTAMP '2005-06-11 23:00:00'"),
+                  "AND ts >= TIMESTAMP '2005-06-11' AND ts < TIMESTAMP '2005-06-12'"),
         1,
+    )
+    check(
+        "the trap reproduces: a 23:00 cut gives 136,209 (the wrong figure, guarded)",
+        db.scalar("SELECT count(*) FROM bgl_ev WHERE is_alert "
+                  "AND ts >= TIMESTAMP '2005-06-11 17:00:00' AND ts < TIMESTAMP '2005-06-11 23:00:00'"),
+        136_209,
+    )
+    check(
+        "the fleet event's lines",
+        db.scalar("SELECT count(*) FROM bgl_ev WHERE is_alert "
+                  "AND ts >= TIMESTAMP '2005-06-14' AND ts < TIMESTAMP '2005-06-15'"),
+        49_154,
     )
     check(
         "the fleet event's blast radius",
@@ -87,6 +107,13 @@ def main() -> int:
     check("evidence carries the SQL", phrase["query"].startswith("SELECT"), True)
     check("evidence carries the operator", "operator" in phrase, True)
     check("truncated == total > returned", phrase["truncated"] == (phrase["total_matches"] > phrase["returned"]), True)
+
+    print("\nclient-side deadline (the engine accepts statement_timeout and ignores it)")
+    try:
+        db.query("SELECT pg_sleep(3)", timeout=0.5)
+        check("a query over its deadline is cancelled", "not cancelled", "QueryTimeout")
+    except db.QueryTimeout:
+        check("a query over its deadline is cancelled", "QueryTimeout", "QueryTimeout")
 
     failures = [r for r in _results if r[0] == FAIL]
     print(f"\n{len(_results) - len(failures)}/{len(_results)} checks passed")

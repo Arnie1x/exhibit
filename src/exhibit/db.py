@@ -8,8 +8,9 @@ psycopg's normal server-side binding -- verified working on 26.09.1.3 for both `
 from __future__ import annotations
 
 import os
+import threading
 from contextlib import contextmanager
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
@@ -21,6 +22,8 @@ DBNAME = os.getenv("SERENEDB_DB", "postgres")
 PASSWORD = os.getenv("SERENEDB_PASSWORD") or None
 # Stage 4: each persona connects as its own database role. Empty = the owner (postgres).
 ROLE = os.getenv("EXHIBIT_ROLE", "")
+# Client-side per-statement deadline in seconds (0 disables). See query().
+TIMEOUT_S = float(os.getenv("EXHIBIT_QUERY_TIMEOUT", "30"))
 
 
 def dsn() -> str:
@@ -72,10 +75,40 @@ def connect(role: str | None = None):
         yield conn
 
 
-def query(sql: str, params: Sequence[Any] | None = None, role: str | None = None) -> list[dict]:
+class QueryTimeout(RuntimeError):
+    """The client-side deadline fired."""
+
+
+def query(
+    sql: str,
+    params: Sequence[Any] | None = None,
+    role: str | None = None,
+    timeout: float | None = None,
+) -> list[dict]:
+    """Run a statement under a client-side deadline.
+
+    `SET statement_timeout` is accepted and NOT enforced by this engine (probed 17 Oct), so the
+    deadline has to live here: a timer cancels the running statement and we raise QueryTimeout
+    rather than letting a bad query hang a demo.
+    """
+    budget = TIMEOUT_S if timeout is None else timeout
     with connect(role=role) as conn:
-        cur = conn.execute(sql, params)
-        return [dict(r) for r in cur.fetchall()]
+        timer = None
+        if budget and budget > 0:
+            timer = threading.Timer(budget, conn.cancel)
+            timer.daemon = True
+            timer.start()
+        try:
+            cur = conn.execute(sql, params)
+            return [dict(r) for r in cur.fetchall()]
+        except psycopg.errors.QueryCanceled as exc:
+            raise QueryTimeout(
+                f"query exceeded {budget:g}s and was cancelled client-side "
+                f"(the engine does not enforce statement_timeout)"
+            ) from exc
+        finally:
+            if timer is not None:
+                timer.cancel()
 
 
 def scalar(sql: str, params: Sequence[Any] | None = None, role: str | None = None):
