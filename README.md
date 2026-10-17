@@ -70,7 +70,7 @@ needs no mount.
 | `tests/golden/headline_numbers.sql` | Independent SQL for the headline numbers (verifier-written) | done |
 | `scripts/parse.py` | BGL + OpenStack → Parquet (zero lines lost) | done |
 | `scripts/md2pdf.py` | Markdown → PDF, for the plan and the write-ups | done |
-| `src/exhibit/` | **The MCP server**: persona-aware registry, result envelope, eleven tools, the evidence ledger | done, 80/80 checks |
+| `src/exhibit/` | **The MCP server**: persona-aware registry, result envelope, eleven tools, the evidence ledger | done, 85/85 checks |
 | `scripts/stage2_mcp_client.py` | Stock-client acceptance check — launches the server over stdio and uses it | done |
 | `pyproject.toml` | uv project; `mcp` 2.x (`MCPServer`) + psycopg 3 | done |
 | `data/ownership.csv` | **The team-ownership table** (see below) | done |
@@ -84,7 +84,7 @@ and the stage numbers refer to `PLAN.md` §11.
 
 ```bash
 make setup     # uv sync — creates .venv and installs mcp + psycopg
-make check     # acceptance: 80 checks against measured numbers, then a stock MCP client
+make check     # acceptance: 85 checks against measured numbers, then a stock MCP client
 make mcp       # run the server on stdio; point any MCP client at it
 ```
 

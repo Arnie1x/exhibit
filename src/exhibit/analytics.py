@@ -194,6 +194,19 @@ ORDER BY lines DESC, started, {part_sql}"""
         src.note,
         f"read as {p.role}",
     ]
+    # a measured zero is still a claim, and this one reads like a defect: say what it means.
+    # The OpenStack corpus writes 'NONE' into the instance column for any line that has no
+    # instance context (host-level warnings, for instance), so a problem whose lines are all
+    # sentinels has a blast radius that is *unmeasurable in instances*, which is not the same
+    # as zero impact — the affected host still matters.
+    zero_blast = [r for r in rows if not int(r.get("nodes") or 0)]
+    if zero_blast:
+        notes.append(
+            f"{len(zero_blast)} of {total:,} incidents report 0 nodes: every line behind them "
+            f"carries no instance id in the corpus (the 'NONE' sentinel), so the blast radius is "
+            f"unmeasurable in instances rather than genuinely zero — read the service and the "
+            f"file paths instead, and do not report 'no impact'"
+        )
     return _finish("episodes", key, p, sql, params, scope=scope, rows=shown, total_matches=total,
                    full_rows=rows,
                    columns=[*cols, "episode_no", "lines", "nodes", "started", "ended", "span"],
@@ -292,6 +305,9 @@ def top_signatures(
     if metric not in ("episodes", "lines", "nodes"):
         return _refused("top_signatures", dataset, p,
                         "by must be one of: episodes, lines, nodes", scope)
+    if metric == "nodes" and spec.nodes_unmeasurable:
+        # measured, not assumed: this dataset's problem lines carry no instance id at all
+        return _refused("top_signatures", dataset, p, spec.nodes_unmeasurable, scope)
     limit = _clamp(limit)
     grain = list(spec.grain or (spec.key,))
     grain_sql = ", ".join(grain)
@@ -306,7 +322,7 @@ def top_signatures(
         # stored aggregate (lead and manager): the incidents are already counted in the relation
         sel = ", ".join([grain_sql, *spec.extra]) if spec.extra else grain_sql
         sql = (f"SELECT {sel}, {spec.lines} AS lines, {spec.episodes} AS episodes,"
-               f" {spec.nodes} AS nodes FROM {spec.relation}{where}"
+               f" {spec.nodes} AS {spec.node_label} FROM {spec.relation}{where}"
                f" GROUP BY {sel} ORDER BY {metric} DESC LIMIT %s")
         rows = db.query(sql, [*params, limit], role=p.role)
         total = db.scalar(
@@ -341,7 +357,7 @@ numbered AS (
     FROM marked
 )
 SELECT {", ".join(cols)}, count(*) AS lines, count(DISTINCT episode_no) AS episodes,
-       {spec.nodes} AS nodes
+       {spec.nodes} AS {spec.node_label}
 FROM numbered
 GROUP BY {", ".join(cols)}
 ORDER BY {metric} DESC
@@ -361,7 +377,7 @@ LIMIT %s"""
 
     return _finish("top_signatures", key, p, sql, final_params, scope=scope,
                    rows=rows, total_matches=total,
-                   columns=[*cols, "lines", "episodes", "nodes"], notes=notes)
+                   columns=[*cols, "lines", "episodes", spec.node_label], notes=notes)
 
 
 # =========================================================================== trend
