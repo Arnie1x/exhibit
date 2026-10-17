@@ -29,15 +29,21 @@ FROM bgl_signature_incidents ORDER BY lines DESC LIMIT 6;
 SELECT left(signature, 52) AS signature, episodes, lines, peak_nodes
 FROM bgl_signature_incidents ORDER BY episodes DESC LIMIT 6;
 
-\echo '=== 4. the one-node burst that makes line counts lie ==='
-SELECT min(ts) AS from_ts, max(ts) AS to_ts, count(*) AS lines, count(DISTINCT node) AS nodes
+\echo '=== 4. the one-node burst that makes line counts lie (every node with alerts that day) ==='
+-- The whole calendar day, not a guessed window: the burst runs to 23:39, and a window that
+-- stopped at 23:00 used to report 136,209 of its 152,183 lines.
+SELECT node, min(ts) AS from_ts, max(ts) AS to_ts, max(ts) - min(ts) AS span, count(*) AS lines,
+       round(100.0 * count(*) / (SELECT count(*) FROM bgl_ev WHERE is_alert), 2) AS pct_of_alert_lines
 FROM bgl_ev
-WHERE is_alert AND ts >= TIMESTAMP '2005-06-11 17:00:00' AND ts < TIMESTAMP '2005-06-11 23:00:00';
+WHERE is_alert AND ts >= TIMESTAMP '2005-06-11' AND ts < TIMESTAMP '2005-06-12'
+GROUP BY node ORDER BY lines DESC;
 
-\echo '=== 4b. THE MONEY COMPARISON: one node vs the whole fleet ==='
-SELECT 'single-node burst, 2005-06-11' AS event, 136209 AS lines, 1 AS nodes
+\echo '=== 4b. THE MONEY COMPARISON: one node vs the whole fleet (both rows computed) ==='
+SELECT 'single-node burst, 2005-06-11' AS event, count(*) AS lines, count(DISTINCT node) AS nodes
+FROM bgl_ev WHERE is_alert AND ts >= TIMESTAMP '2005-06-11' AND ts < TIMESTAMP '2005-06-12'
 UNION ALL
-SELECT 'fleet event, 2005-06-14', 49154, 22529;
+SELECT 'fleet event, 2005-06-14', count(*), count(DISTINCT node)
+FROM bgl_ev WHERE is_alert AND ts >= TIMESTAMP '2005-06-14' AND ts < TIMESTAMP '2005-06-15';
 
 \echo '=== 5. the fleet-wide event that looked small ==='
 SELECT ts::date AS day, count(*) AS lines, count(DISTINCT node) AS nodes

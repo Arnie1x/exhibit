@@ -20,11 +20,12 @@ rejects any answer whose numbers are not present in the tool output.
 
 ## Why our numbers look different
 
-**Lines are not incidents.** Our corpus holds 348,460 alert lines in BGL — but only about
-18,770 *episodes* once you group a signature by the time gap and blast radius. Ranking by
-line count points at the wrong problem: `data tlb error interrupt` has 152,734 lines (44%
-of all alerts) but is only 117 episodes, because 152,185 of those lines happen on one node
-in one six-hour burst. Meanwhile `APPSEV` at 49,651 lines is 7,036 separate episodes.
+**Lines are not incidents.** Our corpus holds 348,460 alert lines in BGL — but only
+19,250 *episodes* once you group a signature by the time gap (5 minutes) and failure domain
+(midplane). Ranking by line count points at the wrong problem: `data TLB error interrupt` has
+152,734 lines (44% of all alerts) but is only 117 episodes, because 152,182 of those lines
+happen on one node in one 6h22m burst on 2005-06-11. Meanwhile the alert category `APPSEV`, at
+49,651 lines, is 7,036 separate episodes per midplane.
 
 Both rankings are in the demo, side by side. That is what "making sense of logs" means.
 

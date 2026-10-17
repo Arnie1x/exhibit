@@ -60,6 +60,19 @@ Two parser bugs worth remembering:
 | Components / services | 10 | 3 services, 12 loggers |
 | Distinct node strings | 69,252 | — |
 
+**Lines, episodes and the burst** (verified 17 Oct by `sql-verifier` with fresh SQL on the raw
+Parquet and on `bgl_ev`; re-run with `tests/golden/headline_numbers.sql`):
+
+| Fact | Value |
+|---|---|
+| Alert lines (`label <> '-'`) | 348,460 |
+| Episodes, 5-minute gap, signature × midplane | 19,250 (100 signatures, 2,657 groups, 129 midplanes incl. `UNKNOWN`) |
+| Episodes, 5-minute gap, signature only | 1,377 |
+| Ties and boundary | no two alert lines share a `ts`; no gap within 1 ms of 300 s, so `>` and `>=` agree; no alert line carries a UUID |
+| The 2005-06-11 burst | **152,183** alert lines, one node `R30-M0-N9-C:J16-U01`, 17:17:44.6 → 23:39:32.9 (6h21m48s), 43.67% of all alert lines; 152,182 `KERNDTLB` + 1 `KERNMC`; no other node alerted that day |
+| The old figure 136,209 | the same burst with `ts < 23:00:00` (15,974 lines after 23:00 left out) |
+| Fleet days | 2005-06-13: 17,409 lines on 16,644 nodes · 2005-06-14: 49,154 lines on 22,529 nodes |
+
 BGL severity distribution: INFO 3,735,823 · FATAL 855,501 · ERROR 112,355 · WARNING 23,357 ·
 SEVERE 19,213 · FAILURE 1,714. **There is no `Kill` level in the derived data**, despite it
 appearing in some descriptions of the corpus.

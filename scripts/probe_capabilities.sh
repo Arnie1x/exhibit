@@ -251,6 +251,7 @@ probe "to_char"                                      err "" "SELECT to_char(NOW(
 probe "to_date"                                      err "" "SELECT to_date('2005-06-03')"
 probe "regexp_extract"                               ok  41.81 "SELECT regexp_extract('Took 41.81 seconds', 'Took ([0-9.]+)', 1)"
 probe "regexp_extract no match -> ''"                ok  "[]" "SELECT '[' || regexp_extract('abc', 'zz([0-9]+)', 1) || ']'"
+probe "statement_timeout = 1ms is not enforced"       ok  "" "SET statement_timeout = '1ms'; SELECT count(*) FROM (SELECT DISTINCT content FROM bgl_ev) t;"
 probe "CREATE ROLE ... LOGIN PASSWORD"                 ok  "" "DROP ROLE IF EXISTS probe_login; CREATE ROLE probe_login LOGIN PASSWORD 'x'; DROP ROLE probe_login;"
 
 echo; echo "############ 9. ROLE SCOPING (doc §6) ############"

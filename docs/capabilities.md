@@ -6,7 +6,7 @@ Rebuild it with `make probe`; if a row disagrees, the measurement wins and this 
 
 **Re-probed Sat 17 Oct, 09:55 UTC** (Adnan) on a second machine: Windows 11, Docker Desktop
 29.7.2, the amd64 build of `serenedb/serenedb:26.09.1.3` (`sha256:018a3187c193…`), 16 vCPU and
-7.6 GB for the Docker VM. `scripts/probe_capabilities.sh` now checks **90 rows** against the
+7.6 GB for the Docker VM. `scripts/probe_capabilities.sh` now checks **91 rows** against the
 outcomes this file states and prints `DRIFT` where they differ: **0 drift** after the two
 corrections below (the partial index, §3; search tables, §1). Two consecutive runs gave identical
 output apart from timings. Read-only probes run in `postgres` against `bgl_ev`/`bgl_idx`/`os_ev`/
@@ -130,6 +130,10 @@ workspace index's predicate ourselves.
 
 ## 4. Corrected: smaller items
 
+- **`statement_timeout` is accepted and not enforced** (17 Oct, found by `sql-verifier`, re-checked):
+  `SET statement_timeout = '1ms'` returns `WARNING: parameter "statement_timeout" is accepted for
+  compatibility but is not enforced by serened`, `SHOW` reports `1ms`, and a 200 ms query completes.
+  The 30 s limit on tool paths must be enforced by the client (cancel the query from a timer).
 - **`VARCHAR(n)` is accepted** — `CREATE TABLE probe_vc (a VARCHAR(10))` succeeded, and 20 characters
   stored all 20 (`length(a)` = 20). "Never `VARCHAR(n)`" is still right, but for the correct reason:
   **it does not enforce.** Nobody should write validation that assumes a length limit.
