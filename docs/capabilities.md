@@ -307,7 +307,56 @@ Related, for a judge without a host `psql`: `psql -f sql/x.sql` needs the file p
 whatever runs psql, which `docker exec` breaks. Every Makefile target now uses `< sql/x.sql`, which
 works with a host client and with `PSQL='docker exec -i serenedb psql …'` alike.
 
-## 9. Reproduction
+## 9. The answer lints, and the eval that scores them
+
+The plan promised two rules in prose (`docs/build-plan.md` §6): a manager answer may not claim money,
+downtime, customers, revenue or an SLA, and every figure in an answer must cite evidence that
+resolves. Prose is a promise; `src/exhibit/lint.py` is the rule, and `make eval` is the score.
+
+**The manager lint.** Scanning stops at quoted spans, because the rule bans *claiming*, not
+*quoting*: `the logs say "Time out on <SLA>"` passes, `this costs $4,000 in downtime` is rejected
+with one finding per term. Measured, through the MCP surface: 2 rejections on the first, 0 on the
+second.
+
+**The numeric lint.** Every bullet in the *Observed* block that carries a figure must cite an
+evidence id; with `deep=true` each cited statement is re-run and the figure has to be supported by
+its result. What counts as supported is the interesting part, and it took two iterations to get
+honest:
+
+* a value in the rows returned (the obvious case);
+* an aggregate of the statement's own result — `sum`, `min`, `max` of any numeric column, or its row
+  count. Without this, "348,460 alert lines in total" flagged as unsupported, because a total is not
+  a value in any one row. A total the statement does not produce is exactly what the lint is for, so
+  the rule is not "accept totals", it is "accept the arithmetic this statement actually supports";
+* the total the envelope itself reported, recorded in the ledger's `total_matches` column. A paged
+  statement returns a page; `verify_evidence` compares the page, and the total is a claim the page
+  carries. Both are in the record, so both are checkable.
+
+A hyphenated compound (`5-minute gap`, `60-minute window`) is a method statement and is not treated
+as a data figure; a standalone figure (`124 days`) is. That distinction came from a false positive,
+not from theory.
+
+**The eval** (`make eval` → 15/15):
+
+| | |
+|---|---|
+| questions | 15 across the three roles, from the brief's own shapes |
+| figures checked | 19, every one compared against a hand-written statement in `evals/golden.sql` — not the SQL the tools build, so a tool's SQL cannot silently move a number |
+| refusals exercised | 6 assertions across 3 negative questions (the wrong-role request must be refused, by name, with a reason) |
+| the chain | each question's answer is built from the values that came back, cites the evidence id, and must pass the lints — a figure that does not resolve fails the question |
+
+What the eval does **not** do is score a model's prose, and it says so in its own docstring. It
+scores the part that has to be true.
+
+Two real defects surfaced by building it, both at the seams rather than in any single tool:
+
+1. `search_logs`, `count_events` and `describe_data` handed out evidence ids without recording
+   them, so a citation of their answers could not be checked at all. All three now record.
+2. `verify_evidence` *raised* on a refusal's id ("the last operation didn't produce records")
+   instead of reporting that refusals are records of a non-answer. A refusal is still an answer,
+   and now it verifies like one.
+
+## 10. Reproduction
 
 ```bash
 docker run -d --name serenedb -p 127.0.0.1:7890:7890 -v serenedb-data:/var/lib/serenedb \

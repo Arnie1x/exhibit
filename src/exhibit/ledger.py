@@ -103,10 +103,11 @@ def record(env: dict[str, Any], sql: str, params: Sequence[Any],
     ledger's contract is "re-run this statement and you get these rows".
     """
     statement_rows = list(rows) if rows is not None else list(env.get("rows") or [])
+    total = env.get("total_matches")
     db.execute(
         f"INSERT INTO {TABLE} (evidence_id, created_at, tool, persona, role, dataset, scope,"
-        " sql_text, params_json, rows_hash, row_count) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,"
-        " %s, %s)",
+        " sql_text, params_json, rows_hash, row_count, total_matches)"
+        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         [
             env["evidence_id"],
             datetime.now(timezone.utc).replace(tzinfo=None),
@@ -119,6 +120,7 @@ def record(env: dict[str, Any], sql: str, params: Sequence[Any],
             _encode(params),
             rows_hash(statement_rows),
             len(statement_rows),
+            None if total is None else int(total),
         ],
     )
     return env["evidence_id"]
@@ -160,6 +162,30 @@ def verify(evidence_id: str, sample: int = 3) -> dict[str, Any]:
         )
 
     params = _decode(row["params_json"])
+    if row["sql_text"].lstrip().startswith("--"):
+        # A refusal is recorded like an answer ("a refusal is an answer, and evidence too"), but
+        # there is no statement to re-run: saying so is the verification, and raising is not.
+        return {
+            "evidence_id": row["evidence_id"],
+            "tool": row["tool"],
+            "persona": row["persona"],
+            "role": row["role"],
+            "dataset": row["dataset"],
+            "scope": json.loads(row["scope"] or "{}"),
+            "recorded_at": str(row["created_at"]),
+            "rows_recorded": int(row["row_count"]),
+            "rows_now": 0,
+            "match": True,
+            "verdict": (
+                "REFUSAL - this id records a refusal, not a statement: the role was not permitted "
+                "and no SQL ran, so there is nothing to re-run"
+            ),
+            "sql": row["sql_text"],
+            "params_recalled": [str(p) for p in params],
+            "rows_now_sample": [],
+            "aggregates_now": {"row_count": 0},
+            "total_recorded": None if row.get("total_matches") is None else int(row["total_matches"]),
+        }
     now = db.query(row["sql_text"], params, role=row["role"])
     stored_hash, now_hash = row["rows_hash"], rows_hash(now)
     match = stored_hash == now_hash and int(row["row_count"]) == len(now)
@@ -185,4 +211,27 @@ def verify(evidence_id: str, sample: int = 3) -> dict[str, Any]:
         "sql": row["sql_text"],
         "params_recalled": [str(p) for p in params],
         "rows_now_sample": now[: max(1, int(sample))],
+        # What the envelope told the caller the true total was -- a page is what the statement
+        # returns, and the total is the claim the page supports. Both are the record.
+        "total_recorded": None if row.get("total_matches") is None else int(row["total_matches"]),
+        # The arithmetic the statement's own result supports: how many rows it returns, and per
+        # numeric column its sum, min and max. The numeric lint uses these, because a figure in a
+        # good answer is often a total ("348,460 alert lines") rather than a value in one row --
+        # and a total that the statement does not produce is exactly what the lint is for.
+        "aggregates_now": _aggregates(now),
     }
+
+
+def _aggregates(rows: Sequence[dict]) -> dict[str, Any]:
+    """row_count plus sum/min/max for every column whose values are all numbers."""
+    if not rows:
+        return {"row_count": 0}
+    out: dict[str, Any] = {"row_count": len(rows)}
+    for column in rows[0]:
+        values = [r.get(column) for r in rows]
+        numbers = [v for v in values if isinstance(v, (int, float, Decimal)) and not isinstance(v, bool)]
+        if numbers and len(numbers) == len(values):
+            out[f"sum:{column}"] = sum(numbers)
+            out[f"min:{column}"] = min(numbers)
+            out[f"max:{column}"] = max(numbers)
+    return out

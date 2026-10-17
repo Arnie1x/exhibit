@@ -17,7 +17,7 @@ import json
 
 from mcp.server.mcpserver import MCPServer
 
-from . import analytics, tools
+from . import analytics, lint, tools
 
 INSTRUCTIONS = """Log intelligence over the BGL and OpenStack corpora, computed in SereneDB.
 
@@ -59,7 +59,12 @@ Stage 3 turns that into the analysis surface:
 * `ownership` -- the team-ownership table we built, checked against the corpus rather than trusted;
 * `nearby_events` -- what else was happening around one line. Engineer only;
 * `verify_evidence` -- re-runs any stored answer and compares it hash for hash. No number here is
-  taken on trust, including the ones this server produced.
+  taken on trust, including the ones this server produced;
+* `lint_answer` -- check an answer before you send it. A manager answer may not claim money,
+  downtime, customers, revenue or an SLA (quoting them from a log line is allowed, claiming is
+  not), and every figure in the Observed block must cite an evidence id that resolves -- with
+  deep=true the cited statement is re-run and the figures are looked for in its rows. A rejected
+  answer is not an answer: fix it or drop the claim.
 
 Never add up a blast radius: `nodes` is distinct machines per incident, so it is a peak, not a sum.
 """
@@ -274,6 +279,17 @@ def what_changed(
     "parameters. A MISMATCH means the corpus or the definition moved since the answer was given."))
 def verify_evidence(evidence_id: str, sample: int = 3) -> str:
     return json.dumps(analytics.verify_evidence(evidence_id=evidence_id, sample=sample), default=str)
+
+
+@mcp.tool(description=(
+    "Lint an answer before sending it. Two rules from the plan are enforced in code: a manager "
+    "answer may not claim money, downtime, customers, revenue or an SLA (quoting them from a log "
+    "line is allowed), and every figure in the Observed block must cite an evidence id that "
+    "resolves; with deep=true each cited statement is re-run and its rows searched for the figures. "
+    "Returns verdict ok / warnings / rejected with one row per finding. It never rewrites the "
+    "answer, and it is not a data claim: no evidence id, nothing written to the ledger."))
+def lint_answer(answer: str, persona: str | None = None, deep: bool = False) -> str:
+    return json.dumps(lint.lint_answer(answer=answer, persona=persona or "", deep=deep), default=str)
 
 
 def main() -> None:

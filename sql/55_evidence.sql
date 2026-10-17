@@ -22,8 +22,13 @@ CREATE TABLE IF NOT EXISTS exhibit_evidence (
     sql_text     VARCHAR NOT NULL,   -- the statement, with %s placeholders
     params_json  VARCHAR NOT NULL,   -- JSON, type-tagged so a re-run binds the same types
     rows_hash    VARCHAR NOT NULL,   -- sha1 of the rows that came back
-    row_count    INTEGER NOT NULL
+    row_count    INTEGER NOT NULL,   -- rows the statement returns (a page, when it has a LIMIT)
+    total_matches BIGINT             -- what the envelope reported as the true total, if it differed
 );
+
+-- Existing databases: added after the first version. Idempotent, so `make evidence` can be
+-- re-run on a database that already has the table.
+ALTER TABLE exhibit_evidence ADD COLUMN IF NOT EXISTS total_matches BIGINT;
 
 GRANT SELECT ON exhibit_evidence TO exhibit_engineer;
 GRANT INSERT ON exhibit_evidence TO exhibit_engineer;

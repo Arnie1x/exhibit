@@ -14,7 +14,7 @@ from typing import Any
 
 import psycopg
 
-from . import analytics, db, tools
+from . import analytics, db, ledger, lint, tools
 from .datasets import catalogue
 
 PASS, FAIL = "PASS", "FAIL"
@@ -326,6 +326,81 @@ def main() -> int:
             unserialisable.append(f"{name}: {exc}")
     check(f"all {len(strict_calls)} sampled answers serialise for a strict client",
           unserialisable or "all serialisable", "all serialisable")
+
+    # The answer lints: promised in the plan (docs/build-plan.md section 6) and, until now, only
+    # prose. The manager vocabulary rule and the numeric rule are worth very little as prose and a
+    # lot as a check, because both are the kind of rule an agent forgets while the demo runs.
+    print("\nanswer lints: the manager vocabulary rule and the numeric rule")
+    manager_money = (
+        "Scope: both datasets, whole corpus\n"
+        "Answer: the failing node will cost $4,000 a month in downtime.\n"
+        "Observed (measured)\n- 3,394 nodes affected [E-0012AB]\n"
+        "Evidence\n| ID | tool |\n| E-0012AB | top_signatures |\n"
+    )
+    check(
+        "manager lint: claiming money and downtime is rejected",
+        lint.lint_answer(manager_money, persona="manager")["verdict"],
+        "rejected",
+    )
+    check(
+        "manager lint: the same words quoted from the logs are allowed",
+        lint.lint_answer(
+            manager_money.replace("$4,000 a month in downtime", "`Time out on <SLA>`"),
+            persona="manager",
+        )["counts"]["reject"],
+        0,
+    )
+    check(
+        "numeric lint: a figure with no evidence id is rejected",
+        lint.lint_answer(
+            "Scope: bgl\nAnswer: one node dominates.\nObserved (measured)\n"
+            "- 152,182 alert lines on one node\n",
+            persona="engineer",
+        )["counts"]["reject"],
+        1,
+    )
+    _lint_env = analytics.top_signatures(dataset="bgl", persona="lead", by="lines", limit=1)
+    _lint_top, _lint_id = _lint_env["rows"][0], _lint_env["evidence_id"]
+    _lint_ok = (
+        f"Scope: bgl, whole corpus\nAnswer: one signature dominates by volume.\n"
+        f"Observed (measured)\n- {_lint_top['lines']:,} alert lines, one node carrying it "
+        f"[{_lint_id}]\nEvidence\n| ID |\n| {_lint_id} |\n"
+    )
+    check(
+        "numeric lint, deep: the real figure (with its comma) resolves in the cited rows",
+        lint.lint_answer(_lint_ok, persona="lead", deep=True)["verdict"],
+        "ok",
+    )
+    check(
+        "numeric lint, deep: a figure that is in no row of the cited statement is flagged",
+        lint.lint_answer(
+            _lint_ok.replace(f"{_lint_top['lines']:,}", "999,999"), persona="lead", deep=True
+        )["counts"]["warn"],
+        1,
+    )
+
+    # A refusal is recorded like an answer, so its id must be verifiable like one. It used to
+    # raise: "the last operation didn't produce records". An id a caller can cite but not check is
+    # worse than no id, and a crash on a citation is the worst version of that.
+    _refusal = analytics.durations(persona="manager", limit=1)
+    _refusal_verify = ledger.verify(_refusal["evidence_id"])
+    check(
+        "verify_evidence on a refusal says so instead of raising",
+        _refusal_verify["verdict"].split(" -")[0],
+        "REFUSAL",
+    )
+    check(
+        "and the three tools that predate the ledger record too",
+        all(
+            ledger.latest(env["evidence_id"]) is not None
+            for env in (
+                tools.describe_data(persona="engineer"),
+                tools.search_logs("bgl", "ciod", persona="engineer", limit=1),
+                tools.count_events("bgl", persona="engineer", limit=1),
+            )
+        ),
+        True,
+    )
 
     failures = [r for r in _results if r[0] == FAIL]
     print(f"\n{len(_results) - len(failures)}/{len(_results)} checks passed")

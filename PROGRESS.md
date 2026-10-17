@@ -312,3 +312,57 @@ are picking up.
 Also added while I was in there, because the demo quotes it: `episodes` takes **`signature=`** and
 `scripts/stage2_mcp_client.py` asserts **117** incidents for `data TLB error interrupt` at a
 5-minute gap — your number, through my tool, over MCP, as part of `make check`.
+
+---
+
+## Handoff back, round 3 — the lints, the eval, and three seam fixes (Arnie, Sat 17 Oct)
+
+**First, what happened to your half:** PR #2 was merged into `main` at 12:21 UTC today (rebase; your
+Stage 3 is the base of it). `main` = `0fe49f6`, and a clean clone of `main` passes 94/94 + the stock
+client. Nothing of yours was rewritten; the `PROGRESS.md` conflict was the only overlap.
+
+**Then this branch (`stage5-eval-and-lints`, PR #3) — four things, all on the seam between our two
+halves, which is where the bugs were:**
+
+1. **The answer lints are now code, not prose** (`src/exhibit/lint.py`, MCP tool `lint_answer`).
+   The manager lint rejects money / `downtime` / `customers` / `revenue` / `SLA` in a manager
+   answer, and *allows all five inside quotes* — the rule bans claiming, not quoting. The numeric
+   lint requires every figure in the Observed block to cite an id that resolves, and with
+   `deep=true` it re-runs the statement and checks the figure against the result, its aggregates
+   (sum / min / max / row count) and the total the envelope reported. Measured now: 101/101 checks,
+   including through the stock MCP client.
+2. **`evals/` is no longer an empty promise** — `make eval` runs 15 questions, three roles, every
+   figure compared against hand-written SQL in `evals/golden.sql` (not the SQL the tools build), and
+   each answer goes through the lints before it counts. **15/15, 19 figures, 6 refusal assertions.**
+   The three negative questions are yours in spirit: `durations(manager)` must be refused with
+   `spawn_s` named, `trend(lead, bucket="week")` must tell the caller to ask for `day`, and
+   `ownership(manager)` must name the missing grant.
+3. **Two of your tools' ids did not resolve** — `search_logs`, `count_events` and `describe_data`
+   handed out evidence ids without recording them, so an answer citing them could not be verified
+   at all. They record now. And `verify_evidence` used to *raise* on a refusal's id ("the last
+   operation didn't produce records"); it now reports `REFUSAL — nothing to re-run`, which matters
+   because your refusals are recorded as answers.
+4. **`sql/55_evidence.sql` gained a column** — `total_matches BIGINT`, with an idempotent
+   `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` so `make evidence` is safe to re-run on a database
+   that already has the table. I applied it to the live one. If you re-run `make bootstrap`,
+   nothing changes; if you re-run only `make evidence`, the ALTER carries it.
+
+**Small items while you were away:**
+
+* `logs/demo-pass3.log` is gitignored, so the numbers you asked me to match against are not in the
+  repo. I matched them anyway from the live database (117 at a 5-minute gap for `data TLB error
+  interrupt`, 132/117/57 at 1/5/60 minutes) and they are now *checks*, so the comparison cannot go
+  stale. If you want the file itself in the repo, `git add -f logs/demo-pass3.log` — your call.
+* `make bench` runs `sql/70_bench.sql`, which does not exist, so that target fails in a clean
+  checkout. Yours (bonus ladder §14); either write it or I will have the target say it is not
+  implemented yet.
+* `docs/disclosure.md` now exists (the rules require disclosing models, tools and datasets, and the
+  README pointed at a file that was not there). It states plainly which assistant wrote which lane —
+  Claude Code for yours, Hermes for mine — and that no model runs in the answer path.
+
+**What I would do next, in order:** nothing is blocking the submission.
+(1) `make demo` + `make eval` on the merged branch, and the 5-minute video;
+(2) the three answers for the Q&A in PLAN §13 that measurement has now settled — the brief's
+"twelve categories" (BGL has 42), "five severity levels" (we measure six), and the 3-vs-5-minute
+demo question;
+(3) if there is time on Sunday, the bonus ladder (§14) — the bench target is the only broken one.
