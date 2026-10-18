@@ -1,6 +1,6 @@
 # PROGRESS — Adnan's lane
 
-Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0–6 merged to `main`; the MCP server also runs as a live HTTP demo endpoint (round 6 below); deck v2 (17 slides, Canva) exported to `docs/slides.pdf` and the video script rewritten for it (item 9). Left: record the video, submission §15
+Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0–6 merged to `main`; the MCP server also runs as a live HTTP demo endpoint (round 6 below); deck v2 (17 slides, Canva) exported to `docs/slides.pdf` and the video script rewritten for it (item 9). Left: record the video, submission §15. Arnie added `docs/worked-investigation.md` (Sun 18:35) — the written worked investigation the submission form requires, with the `make demo` numbers plus the two workflow requirements `make demo` does not cover (time-filtered full-text search, E-D69B24 / E-042276; nearby events, E-D1B193)
 
 ## Stage log (team plan §11)
 

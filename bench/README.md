@@ -15,6 +15,10 @@ BENCH_LADDER="30" make bench-ladder   # reproduces the crash below; restart with
 `eu-west-3`; the slowest read below moved 367.3 MiB in 57.5 s, so this box sees about 6 MiB/s, and
 every remote time here is network-bound. Logs: `logs/bench-*.log` (gitignored; re-run to see them).
 
+**Cost.** The file is read with anonymous HTTPS GETs from a public S3 bucket. Nothing is downloaded
+to disk and no storage, egress or query fee is billed to us — the only cost is the machine the index
+is built on, the Docker VM described above.
+
 **The file:** `https://public-pme.s3.eu-west-3.amazonaws.com/text_bench/part_000.parquet`, the
 organisers' OTel bench: **1,000,000,000 rows**, 1,624 row groups, 40,991,166,725 bytes, sorted by
 time over 2025-09-23 00:00:00 → 00:29:24 (about 567,000 rows per second of log time).
