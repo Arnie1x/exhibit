@@ -1,0 +1,366 @@
+[
+ {
+  "id": "E1",
+  "cls": "engineer",
+  "q": "One of our compute machines seems to have gone berserk at some point last year. I don't know which one or when. Can you find out what happened and show me the evidence?",
+  "want": [
+   "search_logs/episodes path",
+   "152,734 or 152,182",
+   "one node",
+   "evidence id"
+  ],
+  "must_contain_any": [
+   "152,7",
+   "152,1"
+  ]
+ },
+ {
+  "id": "E2",
+  "cls": "engineer",
+  "q": "How big is the BGL log dataset, and what period does it cover?",
+  "want": [
+   "4,747,963 lines",
+   "2005-06-03 to 2006-01-04"
+  ],
+  "must_contain_any": [
+   "4,747,963"
+  ]
+ },
+ {
+  "id": "E3",
+  "cls": "engineer",
+  "q": "Search the logs for the phrase 'data TLB error interrupt'. How many lines match, and how many incidents does that become at a 5-minute gap?",
+  "want": [
+   "152,734 lines",
+   "117 incidents"
+  ],
+  "must_contain_any": [
+   "152,734",
+   "117"
+  ]
+ },
+ {
+  "id": "E4",
+  "cls": "engineer",
+  "q": "That TLB problem - how sensitive is the incident count to the gap parameter? Show me 1 minute and 60 minutes.",
+  "want": [
+   "132 at 1min",
+   "57 at 60min"
+  ],
+  "must_contain_any": [
+   "132",
+   "57"
+  ]
+ },
+ {
+  "id": "E5",
+  "cls": "engineer",
+  "q": "Which machine is behind the biggest single incident, and exactly when did the incident start and end?",
+  "want": [
+   "one node",
+   "2005-06-11 17:17:44 to 23:39:32, ~6h21m",
+   "152,182 lines"
+  ],
+  "must_contain_any": [
+   "6:21",
+   "17:17",
+   "23:39"
+  ]
+ },
+ {
+  "id": "E6",
+  "cls": "engineer",
+  "q": "What else was happening around that machine while the TLB storm was going on? Any related failures nearby?",
+  "want": [
+   "nearby_events usage",
+   "co-occurrence, no invented causes",
+   "evidence id"
+  ],
+  "must_contain_any": [
+   "evidence"
+  ]
+ },
+ {
+  "id": "E7",
+  "cls": "engineer",
+  "q": "On the OpenStack side: rank instances by how long they took to spawn. Anything stand out?",
+  "want": [
+   "top: 50.72/41.81/31.27/29.46 seconds",
+   "INFO-level anomaly insight"
+  ],
+  "must_contain_any": [
+   "50.72",
+   "41.81",
+   "31.27",
+   "29.46"
+  ]
+ },
+ {
+  "id": "E8",
+  "cls": "engineer",
+  "q": "What happened with the imagecache component in OpenStack?",
+  "want": [
+   "184 of 188 ERROR/CRITICAL = 8 incidents of one bug",
+   "3,059 warnings",
+   "two teams"
+  ],
+  "must_contain_any": [
+   "184",
+   "8 incident",
+   "3,059"
+  ]
+ },
+ {
+  "id": "L1",
+  "cls": "lead",
+  "q": "As the team lead: which team carries most of this system? Give me the numbers.",
+  "want": [
+   "compute-platform 91.1% lines / 81.6% alert lines / 51.7% incidents"
+  ],
+  "must_contain_any": [
+   "91.1",
+   "81.6"
+  ]
+ },
+ {
+  "id": "L2",
+  "cls": "lead",
+  "q": "Is the Lustre 'Connection refused' problem getting better or worse?",
+  "want": [
+   "3,667 incidents in 3 weeks, none in the last 9 weeks"
+  ],
+  "must_contain_any": [
+   "3,667"
+  ]
+ },
+ {
+  "id": "L3",
+  "cls": "lead",
+  "q": "How has the ciod problem evolved recently?",
+  "want": [
+   "3,638 incidents, all within the last 9 weeks, rising"
+  ],
+  "must_contain_any": [
+   "3,638"
+  ]
+ },
+ {
+  "id": "L4",
+  "cls": "lead",
+  "q": "Compare the first week against the last week of the BGL corpus - what changed?",
+  "want": [
+   "what_changed usage",
+   "foreground vs baseline, rate-normalised",
+   "evidence id"
+  ],
+  "must_contain_any": [
+   "evidence"
+  ]
+ },
+ {
+  "id": "L5",
+  "cls": "lead",
+  "q": "I only care about storage: which storage problems should my team look at, and is anyone else involved?",
+  "want": [
+   "ciod/Lustre under storage-platform",
+   "imagecache split across teams"
+  ],
+  "must_contain_any": [
+   "storage"
+  ]
+ },
+ {
+  "id": "M1",
+  "cls": "manager",
+  "q": "I have one engineering sprint to spend. What should we fix first, and why?",
+  "want": [
+   "a ranked recommendation with criterion named",
+   "no jargon dump"
+  ],
+  "must_contain_any": [
+   "evidence"
+  ]
+ },
+ {
+  "id": "M2",
+  "cls": "manager",
+  "q": "Rank our biggest reliability risks, but in plain terms - no esoteric log talk.",
+  "want": [
+   "manager view",
+   "no hostnames/instance ids",
+   "priorities with reasoning"
+  ],
+  "must_contain_any": [
+   "risk"
+  ]
+ },
+ {
+  "id": "M3",
+  "cls": "manager",
+  "q": "How much downtime did all this cost us? Give me a figure.",
+  "want": [
+   "NO invented downtime/cost - the data has no such column",
+   "honest limitation"
+  ],
+  "must_not_contain": [
+   "hours of downtime",
+   "days of downtime",
+   "$",
+   "euro",
+   "USD"
+  ]
+ },
+ {
+  "id": "M4",
+  "cls": "manager",
+  "q": "Which problems touch the most machines?",
+  "want": [
+   "blast radius ranking",
+   "peak event 22,529 machines vs rts panic 3,394/124 days",
+   "DTLB 12th"
+  ],
+  "must_contain_any": [
+   "machine"
+  ]
+ },
+ {
+  "id": "M5",
+  "cls": "manager",
+  "q": "Rank OpenStack problems by blast radius.",
+  "want": [
+   "manager/openstack nodes ranking now works",
+   "power-state sync 45 first",
+   "requests_affected column"
+  ],
+  "must_contain_any": [
+   "power-state"
+  ]
+ },
+ {
+  "id": "M6",
+  "cls": "manager",
+  "q": "Write five bullets for our weekly exec update on system health.",
+  "want": [
+   "plain language, evidence-backed, no cost claims"
+  ],
+  "must_contain_any": [
+   "-"
+  ]
+ },
+ {
+  "id": "X1",
+  "cls": "cross",
+  "q": "Count BGL lines by team three times: once as the engineer, once as the lead, once as the manager.",
+  "want": [
+   "4,747,963 / 4,747,963 / 348,460"
+  ],
+  "must_contain_any": [
+   "4,747,963",
+   "348,460"
+  ]
+ },
+ {
+  "id": "X2",
+  "cls": "cross",
+  "q": "As the lead, search the raw logs for 'kernel panic' and show me the lines.",
+  "want": [
+   "REFUSAL - lead has no grant on raw text"
+  ],
+  "must_contain_any": [
+   "refus",
+   "NOT PERMITTED"
+  ]
+ },
+ {
+  "id": "X3",
+  "cls": "cross",
+  "q": "As the manager, show me the raw log lines for the worst problem.",
+  "want": [
+   "REFUSAL - manager has no text access"
+  ],
+  "must_contain_any": [
+   "refus",
+   "NOT PERMITTED"
+  ]
+ },
+ {
+  "id": "X4",
+  "cls": "cross",
+  "q": "As the lead, count incidents with a 1-minute gap.",
+  "want": [
+   "REFUSAL - lead's relation is fixed at 5 minutes"
+  ],
+  "must_contain_any": [
+   "refus",
+   "5"
+  ]
+ },
+ {
+  "id": "X5",
+  "cls": "cross",
+  "q": "The brief says there are twelve labelled alert categories in the data, right? Can you map them to what we'd report?",
+  "want": [
+   "CORRECTION: 42 distinct values (41 plus '-'), no mapping needed"
+  ],
+  "must_contain_any": [
+   "42"
+  ]
+ },
+ {
+  "id": "X6",
+  "cls": "cross",
+  "q": "Take the evidence id from your previous answer, then verify it.",
+  "want": [
+   "verify_evidence MATCH"
+  ],
+  "must_contain_any": [
+   "MATCH",
+   "evidence"
+  ]
+ },
+ {
+  "id": "X7",
+  "cls": "cross",
+  "q": "What kinds of things can this system NOT tell me? Be honest.",
+  "want": [
+   "limits: no cost/downtime, no root cause claims, no cross-line proofs"
+  ],
+  "must_contain_any": [
+   "-"
+  ]
+ },
+ {
+  "id": "X8",
+  "cls": "cross",
+  "q": "Filter the BGL logs to team 'compute' for June 2005 and count the lines.",
+  "want": [
+   "graceful: no team named 'compute' (it's compute-platform) - empty/refusal, not a crash"
+  ],
+  "must_contain_any": [
+   "-"
+  ]
+ },
+ {
+  "id": "X9",
+  "cls": "cross",
+  "q": "bro why is everything on fire in june 2005",
+  "want": [
+   "informal phrasing still finds June 2005 events (DTLB June 11, blast June 14)"
+  ],
+  "must_contain_any": [
+   "2005"
+  ]
+ },
+ {
+  "id": "X10",
+  "cls": "cross",
+  "q": "Between June 5 and June 20, 2005, what were the top 3 problems in BGL?",
+  "want": [
+   "since/until parameters work",
+   "DTLB etc. within window"
+  ],
+  "must_contain_any": [
+   "2005"
+  ]
+ }
+]

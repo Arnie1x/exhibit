@@ -1,0 +1,511 @@
+[
+ {
+  "id": "E1",
+  "cls": "engineer",
+  "rc": 0,
+  "dur": 157.5,
+  "tool_calls": 23,
+  "zero_row_calls": 0,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "durations",
+   "episodes",
+   "nearby_events",
+   "ownership",
+   "search_logs",
+   "top_signatures",
+   "what_changed"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "2/2",
+  "banned_hits": []
+ },
+ {
+  "id": "E2",
+  "cls": "engineer",
+  "rc": 0,
+  "dur": 5.0,
+  "tool_calls": 1,
+  "zero_row_calls": 0,
+  "tools": [
+   "describe_data"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "E3",
+  "cls": "engineer",
+  "rc": 0,
+  "dur": 25.8,
+  "tool_calls": 5,
+  "zero_row_calls": 1,
+  "tools": [
+   "describe_data",
+   "episodes",
+   "search_logs"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "2/2",
+  "banned_hits": []
+ },
+ {
+  "id": "E4",
+  "cls": "engineer",
+  "rc": 0,
+  "dur": 46.2,
+  "tool_calls": 12,
+  "zero_row_calls": 1,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "episodes",
+   "search_logs",
+   "top_signatures"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "2/2",
+  "banned_hits": []
+ },
+ {
+  "id": "E5",
+  "cls": "engineer",
+  "rc": 0,
+  "dur": 93.8,
+  "tool_calls": 14,
+  "zero_row_calls": 2,
+  "tools": [
+   "describe_data",
+   "episodes",
+   "nearby_events",
+   "search_logs",
+   "top_signatures"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "2/3",
+  "banned_hits": []
+ },
+ {
+  "id": "E6",
+  "cls": "engineer",
+  "rc": 0,
+  "dur": 260.4,
+  "tool_calls": 333,
+  "zero_row_calls": 67,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "durations",
+   "episodes",
+   "nearby_events",
+   "ownership",
+   "search_logs",
+   "top_signatures",
+   "trend",
+   "what_changed"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "E7",
+  "cls": "engineer",
+  "rc": 0,
+  "dur": 47.2,
+  "tool_calls": 15,
+  "zero_row_calls": 0,
+  "tools": [
+   "describe_data",
+   "durations",
+   "search_logs"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "4/4",
+  "banned_hits": []
+ },
+ {
+  "id": "E8",
+  "cls": "engineer",
+  "rc": 0,
+  "dur": 148.6,
+  "tool_calls": 26,
+  "zero_row_calls": 4,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "episodes",
+   "ownership",
+   "search_logs",
+   "trend",
+   "what_changed"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/3",
+  "banned_hits": []
+ },
+ {
+  "id": "L1",
+  "cls": "lead",
+  "rc": 0,
+  "dur": 30.5,
+  "tool_calls": 5,
+  "zero_row_calls": 0,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "ownership"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "0/2",
+  "banned_hits": []
+ },
+ {
+  "id": "L2",
+  "cls": "lead",
+  "rc": 0,
+  "dur": 253.3,
+  "tool_calls": 17,
+  "zero_row_calls": 7,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "search_logs"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "0/1",
+  "banned_hits": []
+ },
+ {
+  "id": "L3",
+  "cls": "lead",
+  "rc": 0,
+  "dur": 262.6,
+  "tool_calls": 83,
+  "zero_row_calls": 11,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "episodes",
+   "search_logs",
+   "trend",
+   "what_changed"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "L4",
+  "cls": "lead",
+  "rc": 0,
+  "dur": 288.1,
+  "tool_calls": 29,
+  "zero_row_calls": 0,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "episodes",
+   "ownership",
+   "top_signatures",
+   "trend"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "L5",
+  "cls": "lead",
+  "rc": 0,
+  "dur": 209.7,
+  "tool_calls": 33,
+  "zero_row_calls": 2,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "ownership",
+   "search_logs",
+   "top_signatures",
+   "trend"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "M1",
+  "cls": "manager",
+  "rc": 0,
+  "dur": 416.5,
+  "tool_calls": 38,
+  "zero_row_calls": 6,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "durations",
+   "episodes",
+   "top_signatures",
+   "trend",
+   "what_changed"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "M2",
+  "cls": "manager",
+  "rc": 0,
+  "dur": 296.7,
+  "tool_calls": 29,
+  "zero_row_calls": 8,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "durations",
+   "ownership",
+   "top_signatures",
+   "what_changed"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "M3",
+  "cls": "manager",
+  "rc": 0,
+  "dur": 182.5,
+  "tool_calls": 25,
+  "zero_row_calls": 12,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "durations",
+   "top_signatures"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "0/0",
+  "banned_hits": []
+ },
+ {
+  "id": "M4",
+  "cls": "manager",
+  "rc": 0,
+  "dur": 98.6,
+  "tool_calls": 13,
+  "zero_row_calls": 4,
+  "tools": [
+   "describe_data",
+   "top_signatures"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "M5",
+  "cls": "manager",
+  "rc": 0,
+  "dur": 61.2,
+  "tool_calls": 16,
+  "zero_row_calls": 4,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "top_signatures"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "M6",
+  "cls": "manager",
+  "rc": 0,
+  "dur": 361.2,
+  "tool_calls": 61,
+  "zero_row_calls": 14,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "durations",
+   "episodes",
+   "ownership",
+   "search_logs",
+   "top_signatures",
+   "trend",
+   "what_changed"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "X1",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 35.7,
+  "tool_calls": 7,
+  "zero_row_calls": 0,
+  "tools": [
+   "count_events",
+   "describe_data"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "2/2",
+  "banned_hits": []
+ },
+ {
+  "id": "X2",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 25.1,
+  "tool_calls": 2,
+  "zero_row_calls": 1,
+  "tools": [
+   "describe_data",
+   "search_logs"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/2",
+  "banned_hits": []
+ },
+ {
+  "id": "X3",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 41.4,
+  "tool_calls": 7,
+  "zero_row_calls": 2,
+  "tools": [
+   "describe_data",
+   "search_logs",
+   "top_signatures"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "2/2",
+  "banned_hits": []
+ },
+ {
+  "id": "X4",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 28.6,
+  "tool_calls": 9,
+  "zero_row_calls": 4,
+  "tools": [
+   "describe_data",
+   "episodes"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "2/2",
+  "banned_hits": []
+ },
+ {
+  "id": "X5",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 253.1,
+  "tool_calls": 25,
+  "zero_row_calls": 2,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "durations",
+   "ownership",
+   "search_logs",
+   "top_signatures"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "X6",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 28.9,
+  "tool_calls": 0,
+  "zero_row_calls": 0,
+  "tools": [],
+  "opaque_errors": 0,
+  "exp_hit": "2/2",
+  "banned_hits": []
+ },
+ {
+  "id": "X7",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 59.3,
+  "tool_calls": 13,
+  "zero_row_calls": 10,
+  "tools": [
+   "describe_data",
+   "episodes",
+   "ownership",
+   "search_logs",
+   "trend"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "X8",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 81.8,
+  "tool_calls": 10,
+  "zero_row_calls": 2,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "ownership",
+   "search_logs"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "X9",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 108.9,
+  "tool_calls": 22,
+  "zero_row_calls": 2,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "episodes",
+   "search_logs",
+   "top_signatures",
+   "trend",
+   "what_changed"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ },
+ {
+  "id": "X10",
+  "cls": "cross",
+  "rc": 0,
+  "dur": 362.9,
+  "tool_calls": 41,
+  "zero_row_calls": 0,
+  "tools": [
+   "count_events",
+   "describe_data",
+   "episodes",
+   "top_signatures"
+  ],
+  "opaque_errors": 0,
+  "exp_hit": "1/1",
+  "banned_hits": []
+ }
+]

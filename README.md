@@ -97,6 +97,7 @@ because a Windows console's default code page cannot print the checks' output.
 | `docs/worked-investigation.md` | **The written worked investigation**: both questions, every tool call, the executed SQL, the results, the three role answers with recommended actions, scope and filters, observed facts separated from hypotheses | done |
 | `tests/golden/` | Independent SQL (written without the views) for the headline, Stage 3, W2 and slide numbers | done, 76/76 and 46/46 rows true; 17/17 slide claims |
 | `evals/` | **The evaluation set**: 15 questions, hand-written golden SQL, one score | done, `make eval` → 15/15 |
+| `docs/battery.md` · `evals/battery/` | **Adversarial verification**: 29 judge-style questions against the live endpoint, 8 defects found and fixed, question set + results + two transcripts | done, 29/29, 0 crashes |
 | `scripts/validate_ground_truth.py` | **Ground truth, outside the agent**: `anomaly_labels.txt` vs the `durations` ranking; BGL label vs text-only signatures | done, `make validate` → 13/13 |
 | `sql/70_bench.sql` | The huge-datasets bench: the 1B-row remote OTel file, and an index on a view over Parquet | done, `make bench`; results in `bench/README.md` |
 | `docs/validation.md` · `docs/disclosure.md` | What the validation establishes · models, tools, datasets, what was built in the window | done |
@@ -271,6 +272,24 @@ script the agent cannot call (`docs/validation.md`):
   Instead: signatures computed from message text alone agree with the label on **99.9998%** of
   4,747,963 lines (as an alert detector, precision 0.999991 and recall 0.999983), against 0.4065
   precision for a FATAL-or-FAILURE filter. Ranking by signature loses nothing the label knew.
+
+## Adversarial verification: 29 judge-style questions
+
+The question a stranger asks is whether the server holds up when someone talks to it like a human.
+So we asked it 29 judge-style questions — engineer 8, team lead 5, manager 6, cross-cutting and
+adversarial 10 — against the **live public endpoint**, with a real MCP client, a fresh session per
+question, and deliberately varied phrasings (vague, terse, informal, wrong-premise, refusal probes,
+bad parameters). Every question was then checked against the server's evidence ledger and journal
+rather than against the model's prose.
+
+Result: **29/29 answered, zero crashes, zero opaque errors, zero fabricated numbers, zero claims of
+cost or downtime** — after the battery had found and we had fixed eight real defects
+(PRs #12–#14), including a parameter that arrived in the wrong slot whenever a full-text search was
+combined with a filter, and a `verify_evidence` call that crashed on an id that was never issued.
+Totals for the final run: 914 tool calls, 166 empty-or-refusal envelopes (all deliberate),
+71 minutes of agent time. The per-question method, the defect table, two full transcripts and the
+honest accounting of where the harness's own keyword checks fell short are in
+[`docs/battery.md`](docs/battery.md); the question set and results are in `evals/battery/`.
 
 ## Huge data: the 1-billion-row remote file
 

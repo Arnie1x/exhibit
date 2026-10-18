@@ -1,0 +1,109 @@
+=== E6 | engineer | rc=0 | 260.4s | model=opencode-go/deepseek-v4-pro
+Q: What else was happening around that machine while the TLB storm was going on? Any related failures nearby?
+
+I'll start by understanding what data I can query and locating the TLB storm.
+Now let me search for the TLB storm across both datasets.
+No exact phrase match. Let me search for "TLB" more broadly.
+There are 153k TLB error lines (FATAL) in BGL. Let me find the specific TLB storm signature/episode and identify the machine in question.
+Let me identify the TLB signature and its episodes.
+The TLB error lines are very common (153k). Let me find which machine had a concentrated "storm" — grouping TLB errors by node.
+Found it — node `R30-M0-N9-C:J16-U01` produced 152,183 TLB lines while every other node has ≤8. That's the TLB storm machine. Let me find the storm's time window.
+The storm machine is `R30-M0-N9-C:J16-U01` (152,183 identical "tlb error" lines vs ≤8 on every other node). I need its time window. Let me bracket it with a binary search using count_events.
+The storm is in the early half (before 2005-09-18). Let me narrow it down.
+The storm runs the evening of 2005-06-11 (~16:00–24:00). Let me pin down exact first/last timestamps and grab a representative anchor line.
+Storm window confirmed: **2005-06-11 17:17:44 → 23:39:32** (~6h22m, matching the corpus note). Now let me look at what else was happening around that machine, anchored at the start, middle, and end of the storm.
+The trigger is now clear. Let me examine what happened right **before** and **after** the storm — especially the 8 uncategorized lines at the end and the node's recovery/failure.
+The picture is clear. Let me do two final checks: what the storm node was doing just before the machine check, and whether "machine check" / L2 errors were a wider pattern that evening.
+## TL;DR
+
+The "TLB storm" is a single node — **`R30-M0-N9-C:J16-U01`** (midplane `R30-M0`, compute-platform team) — that spewed **152,183 FATAL `data TLB error interrupt` lines** on the evening of **2005-06-11**, out of 153,031 TLB-matching lines in the *entire* BGL corpus. Every other node tops out at 8 TLB lines ([E-42CF4E](https://evidence/E-42CF4E)). So virtually all TLB errors in seven months of logs come from this one machine, this one evening.
+
+The storm ran **2005-06-11 17:17:44.898186 → 23:39:32.877740** (≈6h22m), and the immediate trigger was captured right next to it.
+
+## What was happening around that machine
+
+**The trigger (the "related failure"):** 0.3 seconds before the first TLB line, the *same node* logged a machine check:
+
+- `2005-06-11T17:17:44.605961` — `machine check interrupt (bit=0x10): L2 DCU read error` (KERNMC, FATAL) — [E-682EC1](https://evidence/E-682EC1)
+- `2005-06-11T17:17:44.898186` — first `data TLB error interrupt` (KERNDTLB, FATAL), then the flood begins — [E-1014E6](https://evidence/E-1014E6)
+
+This was the **only** "machine check" line in the whole two-day window of June 11–12 ([E-29FC58](https://evidence/E-29FC58)). The sequence is textbook: an L2 data-cache (DCU) read error raised a machine check, and the node fell into a runaway data-TLB-error loop that never recovered for six hours.
+
+**During the storm: essentially nothing else.** The storm drowned out the log:
+- At peak (20:30 ±30 min): 23,848 lines, **100% KERNDTLB** — no other category, no other node logged anything in that hour ([E-954C56](https://evidence/E-954C56)).
+- At onset (±2 min around the machine check): 818 KERNDTLB + 1 KERNMC, nothing else ([E-1014E6](https://evidence/E-1014E6)).
+- At the end (23:39 ±30 min): 12,130 KERNDTLB + 8 uncategorized lines ([E-30A10A](https://evidence/E-30A10A)).
+
+The "8 uncategorized lines" and everything after are the aftermath, and they're on *other* hardware, not the storm node.
+
+## Related failures nearby (after it stopped)
+
+Right after the last TLB line at 23:39:32, the log goes quiet and then shows unrelated-but-nearby activity ([E-5D24DF](https://evidence/E-5D24DF)):
+
+- **23:48 & 23:55** — `MidplaneSwitchController performing bit sparing on R27-M1-L3-U18-C bit 3` (INFO, network-fabric) — link-card sparing on a *different* rack (R27-M1).
+- **00:08** — storage/management restart: `idoproxydb has been started`, `mmcs_db_server has been started`, `ciodb has been restarted` (MMCS, storage-platform).
+- **00:36** — routine corrected-memory errors on three other nodes: `1 ddr error(s) detected and corrected` and `211200 L3 EDRAM error(s) detected and corrected` (INFO, corrected ECC).
+
+None of these are on the storm node's midplane `R30-M0`; they're temporally adjacent but look like normal fleet noise rather than a cascade from the TLB storm.
+
+## Bottom line
+
+- The storm is one machine (`R30-M0-N9-C:J16-U01`) and its signature is `data TLB error interrupt`, 152,183 lines over ~6h22m.
+- The **one genuinely related failure** is the `machine check interrupt (bit=0x10): L2 DCU read error` on that same node 0.3s before the storm — the likely root cause.
+- While the storm raged, the rest of the system was effectively silent (at peak, 100% of log volume was this node's TLB errors).
+- The only "nearby" failures afterward are unrelated: link-card bit-sparing on R27-M1, an MMCS/storage restart at 00:08, and corrected DDR/EDRAM ECC errors at 00:36.
+
+Evidence IDs referenced: E-42CF4E, E-682EC1, E-1014E6, E-954C56, E-30A10A, E-5D24DF, E-29FC58.
+
+--- stderr ---
+[0m
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const r = await tools.exhibit.describe_data({ persona: \"engineer\" });\nreturn r;"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const [bgl, os] = await Promise.allSettled([\n  tools.exhibit.search_logs({ dataset: \"bgl\", query: \"TLB storm\", persona: \"engineer\", mode: \"phrase\", limit: 10 }),\n  tools.exhibit.search_logs({ dataset: \"openstack\", query: \"TLB storm\", persona: \"engineer\", mode: \"phrase\", limit: 10 }),\n]);\nreturn { bgl: bgl.status === \"fulfilled\" ? bgl.value : bgl.reason, os: os.status === \"fulfilled\" ? os.value : os.reason };"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const [bgl, os] = await Promise.allSettled([\n  tools.exhibit.search_logs({ dataset: \"bgl\", query: \"TLB\", persona: \"engineer\", mode: \"phrase\", limit: 10 }),\n  tools.exhibit.search_logs({ dataset: \"openstack\", query: \"TLB\", persona: \"engineer\", mode: \"phrase\", limit: 10 }),\n]);\nreturn { bgl: bgl.status === \"fulfilled\" ? bgl.value : bgl.reason, os: os.status === \"fulfilled\" ? os.value : os.reason };"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const s = await tools.exhibit.search({ query: \"signature episode\", namespace: \"exhibit\" });\nreturn s;"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const s = await search({ namespace: \"exhibit\" });\nreturn s.items.map(i => i.path + \" :: \" + i.signature);"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const c = await tools.exhibit.count_events({ dataset: \"bgl\", query: \"TLB\", mode: \"phrase\", group_by: \"signature\", persona: \"engineer\", limit: 30 });\nreturn c;"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const t = await tools.exhibit.top_signatures({ dataset: \"bgl\", persona: \"engineer\", by: \"episodes\", limit: 30 });\nreturn t;"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const c = await tools.exhibit.count_events({ dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\", persona: \"engineer\", limit: 30 });\nreturn c;"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const s = await tools.exhibit.search_logs({ dataset: \"bgl\", query: \"tlb error\", persona: \"engineer\", mode: \"phrase\", limit: 100, level: \"FATAL\" });\nreturn s;"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"\nasync function topNode(since, until) {\n  const r = await tools.exhibit.count_events({\n    dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\",\n    persona: \"engineer\", limit: 3, since, until,\n  });\n  const j = JSON.parse(r.result);\n  const rows = j.rows || [];\n  return rows.map(x => ({ node: x.bucket, n: x.n }));\n}\n\n// bracket the storm window\nconst start = \"2005-06-03 15:42:50\";\nconst end = \"2006-01-04 08:00:05\";\n\n// Check the latest ~half and earliest ~half\nconst mid = \"2005-09-18 00:00:00\";\nconst late = await topNode(mid, end);\nconst early = await topNode(start, mid);\nreturn { late, early };\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"\nasync function topNode(since, until) {\n  const r = await tools.exhibit.count_events({\n    dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\",\n    persona: \"engineer\", limit: 2, since, until,\n  });\n  const j = JSON.parse(r.result);\n  return (j.rows || []).map(x => ({ node: x.bucket, n: x.n }));\n}\n\n// narrow within [2005-06-03, 2005-09-18]\nconst start = \"2005-06-03 15:42:50\";\nconst end = \"2005-09-18 00:00:00\";\n\n// split into thirds to get a coarse view\nconst q1 = \"2005-07-09 00:00:00\";\nconst q2 = \"2005-08-13 00:00:00\";\nconst a = await topNode(start, q1);\nconst b = await topNode(q1, q2);\nconst c = await topNode(q2, end);\nreturn { \"Jun3-Jul9\": a, \"Jul9-Aug13\": b, \"Aug13-Sep18\": c };\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"\nasync function topNode(since, until) {\n  const r = await tools.exhibit.count_events({\n    dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\",\n    persona: \"engineer\", limit: 2, since, until,\n  });\n  const j = JSON.parse(r.result);\n  return (j.rows || []).map(x => ({ node: x.bucket, n: x.n }));\n}\n\n// narrow within [2005-06-03, 2005-07-09]\nconst start = \"2005-06-03 15:42:50\";\nconst end = \"2005-07-09 00:00:00\";\nconst q1 = \"2005-06-15 00:00:00\";\nconst q2 = \"2005-06-21 00:00:00\";\nconst q3 = \"2005-06-27 00:00:00\";\nconst q4 = \"2005-07-03 00:00:00\";\nconst a = await topNode(start, q1);\nconst b = await topNode(q1, q2);\nconst c = await topNode(q2, q3);\nconst d = await topNode(q3, q4);\nconst e = await topNode(q4, end);\nreturn { \"Jun3-15\": a, \"Jun15-21\": b, \"Jun21-27\": c, \"Jun27-Jul3\": d, \"Jul3-9\": e };\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"\nasync function topNode(since, until) {\n  const r = await tools.exhibit.count_events({\n    dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\",\n    persona: \"engineer\", limit: 2, since, until,\n  });\n  const j = JSON.parse(r.result);\n  return (j.rows || []).map(x => ({ node: x.bucket, n: x.n }));\n}\n\nconst start = \"2005-06-03 15:42:50\";\nconst end = \"2005-06-15 00:00:00\";\nconst q1 = \"2005-06-06 00:00:00\";\nconst q2 = \"2005-06-09 00:00:00\";\nconst q3 = \"2005-06-12 00:00:00\";\nconst a = await topNode(start, q1);\nconst b = await topNode(q1, q2);\nconst c = await topNode(q2, q3);\nconst d = await topNode(q3, end);\nreturn { \"Jun3-6\": a, \"Jun6-9\": b, \"Jun9-12\": c, \"Jun12-15\": d };\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"\nasync function topNode(since, until) {\n  const r = await tools.exhibit.count_events({\n    dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\",\n    persona: \"engineer\", limit: 2, since, until,\n  });\n  const j = JSON.parse(r.result);\n  return (j.rows || []).map(x => ({ node: x.bucket, n: x.n }));\n}\n\nconst start = \"2005-06-09 00:00:00\";\nconst end = \"2005-06-12 00:00:00\";\nconst q1 = \"2005-06-09 12:00:00\";\nconst q2 = \"2005-06-10 00:00:00\";\nconst q3 = \"2005-06-10 12:00:00\";\nconst q4 = \"2005-06-11 00:00:00\";\nconst q5 = \"2005-06-11 12:00:00\";\nconst a = await topNode(start, q1);\nconst b = await topNode(q1, q2);\nconst c = await topNode(q2, q3);\nconst d = await topNode(q3, q4);\nconst e = await topNode(q4, q5);\nconst f = await topNode(q5, end);\nreturn { \"Jun9 0-12\": a, \"Jun9 12-24\": b, \"Jun10 0-12\": c, \"Jun10 12-24\": d, \"Jun11 0-12\": e, \"Jun11 12-24\": f };\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"\nasync function topNode(since, until) {\n  const r = await tools.exhibit.count_events({\n    dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\",\n    persona: \"engineer\", limit: 2, since, until,\n  });\n  const j = JSON.parse(r.result);\n  return (j.rows || []).map(x => ({ node: x.bucket, n: x.n }));\n}\n\nconst start = \"2005-06-11 12:00:00\";\nconst end = \"2005-06-12 00:00:00\";\nconst q1 = \"2005-06-11 14:00:00\";\nconst q2 = \"2005-06-11 16:00:00\";\nconst q3 = \"2005-06-11 18:00:00\";\nconst q4 = \"2005-06-11 20:00:00\";\nconst q5 = \"2005-06-11 22:00:00\";\nconst a = await topNode(start, q1);\nconst b = await topNode(q1, q2);\nconst c = await topNode(q2, q3);\nconst d = await topNode(q3, q4);\nconst e = await topNode(q4, q5);\nconst f = await topNode(q5, end);\nreturn { \"12-14\": a, \"14-16\": b, \"16-18\": c, \"18-20\": d, \"20-22\": e, \"22-24\": f };\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"async function search(since, until, limit=10) {\n  const r = await tools.exhibit.search_logs({\n    dataset: \"bgl\", query: \"tlb error\", mode: \"phrase\", persona: \"engineer\",\n    level: \"FATAL\", since, until, limit,\n  });\n  const j = JSON.parse(r.result);\n  return j.rows || [];\n}\n\n// first error: within 16:00-18:00, get ascending (oldest) — fetch and reverse\nconst firstBatch = await search(\"2005-06-11 16:00:00\", \"2005-06-11 18:00:00\", 200);\n// last error: within 22:00-24:00, DESC gives newest first\nconst lastBatch = await search(\"2005-06-11 22:00:00\", \"2005-06-12 00:00:00\", 5);\n\nconst first = firstBatch.filter(r => r.node === \"R30-M0-N9-C:J16-U01\").sort((a,b)=>a.ts.localeCompare(b.ts))[0];\nconst last = lastBatch.filter(r => r.node === \"R30-M0-N9-C:J16-U01\")[0];\n\nreturn {\n  totalFirstBatch: firstBatch.length,\n  first: first ? { id: first.id, ts: first.ts, node: first.node } : null,\n  last: last ? { id: last.id, ts: last.ts, node: last.node } : null,\n};\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"async function hasStorm(since, until) {\n  const r = await tools.exhibit.count_events({\n    dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\",\n    persona: \"engineer\", limit: 1, since, until,\n  });\n  const j = JSON.parse(r.result);\n  const row = (j.rows || [])[0];\n  return row && row.bucket === \"R30-M0-N9-C:J16-U01\" ? row.n : 0;\n}\n\n// find storm start within 16:00-18:00\nconst results = [];\nfor (const [s, e] of [\n  [\"2005-06-11 16:00:00\",\"2005-06-11 16:30:00\"],\n  [\"2005-06-11 16:30:00\",\"2005-06-11 17:00:00\"],\n  [\"2005-06-11 17:00:00\",\"2005-06-11 17:30:00\"],\n  [\"2005-06-11 17:30:00\",\"2005-06-11 18:00:00\"],\n]) {\n  results.push({ s, e, n: await hasStorm(s, e) });\n}\nreturn results;\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"async function hasStorm(since, until) {\n  const r = await tools.exhibit.count_events({\n    dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\",\n    persona: \"engineer\", limit: 1, since, until,\n  });\n  const j = JSON.parse(r.result);\n  const row = (j.rows || [])[0];\n  return row && row.bucket === \"R30-M0-N9-C:J16-U01\" ? row.n : 0;\n}\n\nconst results = [];\nfor (const [s, e] of [\n  [\"2005-06-11 17:00:00\",\"2005-06-11 17:05:00\"],\n  [\"2005-06-11 17:05:00\",\"2005-06-11 17:10:00\"],\n  [\"2005-06-11 17:10:00\",\"2005-06-11 17:15:00\"],\n  [\"2005-06-11 17:15:00\",\"2005-06-11 17:20:00\"],\n  [\"2005-06-11 17:20:00\",\"2005-06-11 17:25:00\"],\n  [\"2005-06-11 17:25:00\",\"2005-06-11 17:30:00\"],\n]) {\n  results.push({ s, e, n: await hasStorm(s, e) });\n}\nreturn results;\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"async function search(since, until, limit=200) {\n  const r = await tools.exhibit.search_logs({\n    dataset: \"bgl\", query: \"tlb error\", mode: \"phrase\", persona: \"engineer\",\n    level: \"FATAL\", since, until, limit,\n  });\n  const j = JSON.parse(r.result);\n  return j.rows || [];\n}\nconst batch = await search(\"2005-06-11 17:15:00\", \"2005-06-11 17:20:00\", 5000);\nconst storm = batch.filter(r => r.node === \"R30-M0-N9-C:J16-U01\").sort((a,b)=>a.ts.localeCompare(b.ts));\nconst first = storm[0];\nconst last = storm[storm.length-1];\nreturn { count: storm.length, first: {id:first.id, ts:first.ts}, last: {id:last.id, ts:last.ts} };\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"async function hasStorm(since, until) {\n  const r = await tools.exhibit.count_events({\n    dataset: \"bgl\", query: \"tlb\", mode: \"phrase\", group_by: \"node\",\n    persona: \"engineer\", limit: 1, since, until,\n  });\n  const j = JSON.parse(r.result);\n  const row = (j.rows || [])[0];\n  return row && row.bucket === \"R30-M0-N9-C:J16-U01\" ? row.n : 0;\n}\nconst results = [];\nfor (const [s, e] of [\n  [\"2005-06-11 17:15:00\",\"2005-06-11 17:16:00\"],\n  [\"2005-06-11 17:16:00\",\"2005-06-11 17:17:00\"],\n  [\"2005-06-11 17:17:00\",\"2005-06-11 17:18:00\"],\n  [\"2005-06-11 17:18:00\",\"2005-06-11 17:19:00\"],\n  [\"2005-06-11 17:19:00\",\"2005-06-11 17:20:00\"],\n]) {\n  results.push({ s, e, n: await hasStorm(s, e) });\n}\nreturn results;\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"async function search(since, until, limit=200) {\n  const r = await tools.exhibit.search_logs({\n    dataset: \"bgl\", query: \"tlb error\", mode: \"phrase\", persona: \"engineer\",\n    level: \"FATAL\", since, until, limit,\n  });\n  const j = JSON.parse(r.result);\n  return j.rows || [];\n}\n// 17:17-17:18 has only 99 lines, under the 200 cap, so we get all of them\nconst batch = await search(\"2005-06-11 17:17:00\", \"2005-06-11 17:18:00\", 200);\nconst storm = batch.filter(r => r.node === \"R30-M0-N9-C:J16-U01\").sort((a,b)=>a.ts.localeCompare(b.ts));\nreturn { total: batch.length, first: storm[0] ? {id:storm[0].id, ts:storm[0].ts} : null };\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const [start, mid, end] = await Promise.allSettled([\n  tools.exhibit.nearby_events({ dataset: \"bgl\", persona: \"engineer\", id: 222716, minutes: 30, limit: 30 }),\n  tools.exhibit.nearby_events({ dataset: \"bgl\", persona: \"engineer\", ts: \"2005-06-11 20:30:00\", minutes: 30, limit: 30 }),\n  tools.exhibit.nearby_events({ dataset: \"bgl\", persona: \"engineer\", id: 375317, minutes: 30, limit: 30 }),\n]);\nreturn {\n  start: start.status === \"fulfilled\" ? start.value : start.reason,\n  mid: mid.status === \"fulfilled\" ? mid.value : mid.reason,\n  end: end.status === \"fulfilled\" ? end.value : end.reason,\n};\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const [after1, after2, before] = await Promise.allSettled([\n  tools.exhibit.nearby_events({ dataset: \"bgl\", persona: \"engineer\", ts: \"2005-06-11 23:45:00\", minutes: 20, limit: 40 }),\n  tools.exhibit.nearby_events({ dataset: \"bgl\", persona: \"engineer\", ts: \"2005-06-12 00:10:00\", minutes: 30, limit: 40 }),\n  tools.exhibit.nearby_events({ dataset: \"bgl\", persona: \"engineer\", id: 222715, minutes: 2, limit: 40 }),\n]);\nreturn {\n  after_2345: after1.status === \"fulfilled\" ? after1.value : after1.reason,\n  after_0010: after2.status === \"fulfilled\" ? after2.value : after2.reason,\n  before_2min: before.status === \"fulfilled\" ? before.value : before.reason,\n};\n"} 
+> build · deepseek-v4-pro
+[0m⚙ [0mexecute {"code":"const [preStorm, machineCheck] = await Promise.allSettled([\n  tools.exhibit.nearby_events({ dataset: \"bgl\", persona: \"engineer\", ts: \"2005-06-11 17:10:00\", minutes: 10, limit: 30 }),\n  tools.exhibit.search_logs({ dataset: \"bgl\", query: \"machine check\", persona: \"engineer\", mode: \"phrase\", since: \"2005-06-11 00:00:00\", until: \"2005-06-12 23:59:59\", limit: 20 }),\n]);\nreturn {\n  preStorm: preStorm.status === \"fulfilled\" ? preStorm.value : preStorm.reason,\n  machineCheck: machineCheck.status === \"fulfilled\" ? machineCheck.value : machineCheck.reason,\n};\n"} 
+> build · deepseek-v4-pro
+
