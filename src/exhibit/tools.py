@@ -25,6 +25,8 @@ from . import db, ledger
 from .datasets import INDEX_COLUMNS, INDEX_GROUP, Persona, PersonaView, persona as persona_meta
 from .envelope import Envelope
 
+TEXT_CHARS = 300        # rule 8: log text is quoted, not dumped -- one constant, both tools
+
 MODES = {
     "term": ("%s", "term match (@@)"),
     "phrase": ("ts_phrase(%s)", "phrase (ts_phrase)"),
@@ -258,7 +260,7 @@ def search_logs(
         + (f", {view.node_column} AS node" if view.node_column else "")
         + f", {view.level_column} AS level, team,"
         f" ts_highlight({view.search_column}, ts_offsets({view.search_column})) AS highlight,"
-        f" left({view.search_column}, 400) AS content"
+        f" left({view.search_column}, {TEXT_CHARS}) AS content"
         f" FROM {view.search} WHERE {' AND '.join(where)}"
         f" ORDER BY {view.time_column} DESC LIMIT %s"
     )

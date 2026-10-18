@@ -39,13 +39,13 @@ from .datasets import (
     episodes_of,
     rank_of,
 )
-from .tools import _agg, _asked, _as_dt, _envelope, _filters, _jsonable, _refuse, _scope
+from .tools import (TEXT_CHARS, _agg, _asked, _as_dt, _envelope, _filters, _jsonable,
+                    _refuse, _scope)
 
 MAX_ROWS = 200           # rule 9: hard cap on returned rows
 DEFAULT_ROWS = 20        # rule 9: default page size
 MAX_BUCKETS = 400        # rule 9: hard cap on buckets in one trend
 MAX_FACETS = 10          # rule 9: hard cap on facet values
-TEXT_CHARS = 300         # rule 8: log text is quoted, not dumped
 
 
 def _clamp(n: Any, default: int = DEFAULT_ROWS, hard: int = MAX_ROWS) -> int:
