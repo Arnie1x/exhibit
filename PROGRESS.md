@@ -561,3 +561,11 @@ sees the field-level message and retries, which is exactly what happened.
 
 `make check` 101/101, `make eval` 15/15, `make validate` 13/13 all still hold after the fixes.
 
+**Follow-up (same afternoon):** a retry of "rank OpenStack by blast radius as the manager" showed the
+model *reasoning around* the fixed path instead of calling it — the relation's column really is
+named `requests_affected`, and nothing said that `by='nodes'` is how you address it. So: a
+`by='requests_affected'` refusal now answers "…this relation's blast-radius column is
+requests_affected, and `by='nodes'` is how you order by it", and the tool description says the same
+up front. Verified on the live endpoint: the fixed call returns 5 rows (top: power-state sync, 45/45),
+and the pointer refusal carries the right sentence.
+
