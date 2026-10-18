@@ -70,8 +70,16 @@ tool-call lines and the answer are both on screen.
 
 **PROMPT** (ask it once, then leave it):
 
-> As the engineer: find the BGL problem with the most lines, tell me how many incidents it really is
-> at a five-minute gap, and how concentrated it is on a single machine. Show me the evidence.
+> As the engineer: search the BGL logs for the phrase "data TLB error interrupt". How many lines
+> match in total? Then tell me how many incidents that is at a five-minute gap, and how concentrated
+> it is on a single machine. Show me the evidence.
+
+**Start with the phrase search — do not ask for "the problem with the most lines".** That phrasing
+sends the agent to `top_signatures`, which ranks at **signature × midplane** grain; its top row is
+DTLB *inside* `R30-M0`, which is **152,193 lines and 12 nodes**, not the corpus-wide 152,734 across
+541 nodes that slide 9 shows. Both numbers are right, for different questions, and the tool states
+its grain in the result notes — but on camera the figure has to match the slide. The phrase search
+gives 152,734 directly.
 
 **SAY**
 
@@ -199,6 +207,12 @@ clip 3 to the lead and manager answers. Same takes, no second session.
 ## Do not say
 
 - **136,209** — an early figure from a window cut at 23:00. The burst is **152,183**.
+- **"The DTLB problem is 152,193 lines."** Say **152,734**. 152,193 is the `R30-M0` slice alone:
+  `top_signatures` ranks signature × midplane, so its top row is DTLB inside one midplane. If a judge
+  asks about the difference, one sentence answers it — *"152,734 is the whole signature across 541
+  machines; the ranking tool groups by signature and midplane, because that is the grain an incident
+  is coalesced at, so its top row is the one midplane that produced 152,193 of them."* Both are real;
+  they answer different questions, and the demo prints both.
 - **"12th by blast radius"** without qualification — DTLB is 12th on blast radius *plus persistence*,
   and **1st** by lines.
 - **Any cost, downtime, customer or revenue figure.** The logs cannot support one.
@@ -217,6 +231,9 @@ clip 3 to the lead and manager answers. Same takes, no second session.
 | Lustre 3,667 · ciod 3,638; 3,394 nodes / 124 days; DTLB 12th | `make demo` W1 L2, L4, M2; the agent's `top_signatures` |
 | 19,250 rows recorded and now; `MATCH` | `make check`; the agent's `verify_evidence` |
 | 42 categories vs the brief's 12 | `make smoke`, `docs/data-notes.md` |
+
+**One number to be ready to explain, not to say:** `152,193` (the `R30-M0` midplane slice) against
+`152,734` (the whole signature). See the note under clip 2.
 
 Every figure also appears on a slide, and slides 3, 4, 9–13 carry their own provenance in
 `docs/slides.md`.
