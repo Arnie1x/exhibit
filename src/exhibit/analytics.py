@@ -323,6 +323,11 @@ def top_signatures(
 
     metric = (by or "episodes").strip().lower()
     if metric not in ("episodes", "lines", "nodes"):
+        if metric == spec.node_label:
+            return _refused("top_signatures", dataset, p,
+                            f"by must be one of: episodes, lines, nodes -- this relation's "
+                            f"blast-radius column is {spec.node_label} (requests affected, not "
+                            f"machines), and by='nodes' is how you order by it", scope)
         return _refused("top_signatures", dataset, p,
                         "by must be one of: episodes, lines, nodes", scope)
     if metric == "nodes" and spec.nodes_unmeasurable:
