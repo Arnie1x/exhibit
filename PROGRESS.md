@@ -539,3 +539,25 @@ commit it (yours; the artifact is in your account); (2) **the video** — record
 `docs/video-script.md`; (3) **stage 8** — flip the repo public and upload (§15). Nothing else is
 open.
 
+## Handoff back, round 7 — the endpoint's first real users, and three failures fixed (Arnie, Sun 18 Oct)
+
+The live endpoint got real external traffic today (a local client from outside the tailnet, ~60
+calls — the judges' path). Three calls failed; all three are now explained and addressed:
+
+1. **`top_signatures(by="nodes")` as the manager on OpenStack crashed** (two of the three):
+   `UndefinedColumn: "nodes"`. That relation renames its blast-radius column (`requests_affected`
+   counts requests, not machines) and the ORDER BY used the logical name. Fixed — it now returns
+   its ranking like every sibling (the engineer/lead combinations still refuse with the measured
+   `nodes_unmeasurable` reason).
+2. **`count_events` with a `group_by` that is not a bucket** ("nodes", "teams") died with an opaque
+   error; now a refusal envelope listing the buckets the view actually has — same shape as a bad
+   `by` on top_signatures.
+3. **`since`/`until` with a non-ISO string** now reads "…use an ISO one like '2005-06-11'" instead
+   of a bare crash; same for a bad search `mode`.
+
+The client's third failure left no server trace — that class is the MCP SDK's own argument
+validation (a missing required field or a wrong type), rejected before our code runs; the model
+sees the field-level message and retries, which is exactly what happened.
+
+`make check` 101/101, `make eval` 15/15, `make validate` 13/13 all still hold after the fixes.
+

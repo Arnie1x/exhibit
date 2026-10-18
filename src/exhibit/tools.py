@@ -19,6 +19,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from mcp.server.mcpserver.exceptions import ToolError
+
 from . import db, ledger
 from .datasets import Persona, PersonaView, persona as persona_meta
 from .envelope import Envelope
@@ -36,14 +38,22 @@ def _as_dt(value) -> datetime | None:
         return None
     if isinstance(value, datetime):
         return value
-    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        # ToolError (not a bare ValueError): the client sees this text, so a caller who passes
+        # "last week" is told what the accepted shape is instead of "Error executing tool ...".
+        raise ToolError(
+            f"{value!r} is not a timestamp these tools accept; use an ISO one like "
+            f"'2005-06-11', '2005-06-11 17:17' or '2005-06-11T17:17:44Z'"
+        ) from None
 
 
 def _predicate(view: PersonaView, query: str, mode: str, params: list) -> tuple[str, str]:
     """Return (sql fragment, human name of the operator)."""
     mode = (mode or "phrase").strip().lower()
     if mode not in MODES:
-        raise ValueError(f"unknown mode {mode!r}; available: {', '.join(sorted(MODES))}")
+        raise ToolError(f"unknown mode {mode!r}; available: {', '.join(sorted(MODES))}")
     if mode in ("any", "all"):
         params.append([t.strip() for t in query.split(",") if t.strip()])
     else:
@@ -304,7 +314,12 @@ def count_events(
 
     group_by = (group_by or view.default_group
                 or (view.group_names[0] if view.group_names else "")).strip()
-    bucket = view.group_column(group_by)
+    try:
+        bucket = view.group_column(group_by)
+    except KeyError as exc:
+        # An unknown bucket is a refusal, not a crash: same shape as a bad `by` on
+        # top_signatures, and the message already lists what this view can bucket by.
+        return _refuse("count_events", dataset, p, str(exc), scope)
     limit = max(1, min(int(limit), 200))
 
     params: list[Any] = []
