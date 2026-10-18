@@ -52,6 +52,18 @@ happen on one node in one 6h22m burst on 2005-06-11. Meanwhile the alert categor
 
 Both rankings are in the demo, side by side. That is what "making sense of logs" means.
 
+## Requirements
+
+| Dependency | Version | Used for |
+|---|---|---|
+| Docker | any recent | SereneDB `serenedb/serenedb:26.09.1.3` (the image the numbers were measured on) |
+| GNU make, bash | any | every target in the `Makefile` |
+| Python | 3.11+ (`.python-version`) | the parser and the MCP server |
+| [uv](https://docs.astral.sh/uv/) | any recent | installs `mcp>=2.3.0` and `psycopg[binary]>=3.3.6` (`pyproject.toml`, pinned in `uv.lock`); `make parse` adds `pyarrow` on the fly |
+| curl, unzip, tar | any | `make fetch` |
+| `psql` | optional | the SQL targets; without it, pass `PSQL='docker exec -i serenedb psql …'` (below) |
+| Disk | ~1.5 GB | archives, unpacked logs, Parquet and the SereneDB volume |
+
 ## Quickstart
 
 ```bash
@@ -127,6 +139,12 @@ the code and SQL first, the working documents last.
 | `scripts/validate_ground_truth.py` | **Ground truth, outside the agent**: `anomaly_labels.txt` vs the `durations` ranking; BGL label vs text-only signatures | done, `make validate` → 13/13 |
 | `sql/70_bench.sql` | The huge-datasets bench: the 1B-row remote OTel file, and an index on a view over Parquet | done, `make bench`; results in `bench/README.md` |
 | `docs/validation.md` · `docs/disclosure.md` | What the validation establishes · models, tools, datasets, what was built in the window | done |
+| `docs/slides.md` · `docs/slides.pdf` · `docs/VERIFY.md` | The deck, every slide number with its source, and the independent re-derivation of the new slide figures | done |
+| `docs/video-script.md` | The recording sheet for the video: what to show, what to say, what you should see | done |
+| `docs/followup-questions.md` · `docs/plan.pdf` | Questions we sent the challenge owners · the plan as a PDF | kept for transparency |
+| `scripts/probe_capabilities.sh` | The capability probe behind `docs/capabilities.md` (`make probe`) | done |
+| `bench/run_ladder.sh` | The bench at 1 s and 10 s slices, each index sized on disk (`make bench-ladder`) | done |
+| `.mcp.json` | MCP client config: the local stdio server, the live demo endpoint, the SereneDB docs server | done |
 | `docs/process/` | Our working documents: the operating plan, the build reference, the handoff log, the kickoff brief | kept for transparency |
 | `LICENSE` | MIT | done |
 
@@ -140,6 +158,61 @@ make setup     # uv sync — creates .venv and installs mcp + psycopg
 make check     # acceptance: 101 checks against measured numbers, then a stock MCP client
 make mcp       # run the server on stdio; point any MCP client at it
 ```
+
+**Connecting to a SereneDB instance.** The server and the checks read the connection from the
+environment (`src/exhibit/db.py`; template in `.env.example`), so pointing them at another instance
+is a matter of setting these. The `make` SQL targets take the same instance through `PSQL`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SERENEDB_HOST` · `SERENEDB_PORT` | `127.0.0.1` · `7890` | where SereneDB listens |
+| `SERENEDB_USER` · `SERENEDB_PASSWORD` · `SERENEDB_DB` | `postgres` · *(none)* · `postgres` | the login; each persona then runs under its own role via `SET ROLE` |
+| `EXHIBIT_PERSONA` | `engineer` | the persona used when a tool call names none |
+| `EXHIBIT_QUERY_TIMEOUT` | `30` | seconds; enforced client-side, because 26.09.1.3 accepts `statement_timeout` but does not enforce it |
+| `EXHIBIT_MCP_TRANSPORT` | `stdio` | `streamable-http` serves on `EXHIBIT_MCP_HOST:EXHIBIT_MCP_PORT` + `EXHIBIT_MCP_PATH` (`127.0.0.1:8900/mcp`) |
+
+**Starting the agent workflow.** Any MCP client that can launch a stdio server works. The repo's
+own `.mcp.json` registers it for clients that read project config; elsewhere, the usual shape is:
+
+```json
+{ "mcpServers": { "exhibit": { "command": "uv", "args": ["run", "--directory", "/path/to/exhibit", "exhibit-mcp"] } } }
+```
+
+The server's instructions tell the model the rules (quote the evidence id, ask as the persona whose
+question it is, never compute a figure itself, lint before answering). Then ask a question as a role,
+for example *"As the team lead: which BGL problem should we staff first?"*. The model picks the
+tools; every tool returns the envelope below, and `verify_evidence` re-runs any of them.
+
+### Tool reference: inputs and outputs
+
+Common inputs, accepted by every data tool: `persona` = `engineer` | `lead` | `manager` (default
+`engineer`); `limit` (default 20, capped at 200; `trend` caps at 400 buckets); `since` / `until`
+(ISO dates or timestamps on the dataset's own clock, 2005–2006 for BGL, 2017 for OpenStack);
+`level` and `team` filters where the role's relation carries them. `dataset` is `bgl` or `openstack`.
+**Required** inputs are in bold.
+
+| Tool | Inputs | Returns (in `rows`) |
+|---|---|---|
+| `describe_data` | `dataset`, `persona` | per readable dataset: relation, shape (raw or aggregated), total, time range, whether it can search, the `group_by` options, columns never to sum |
+| `search_logs` | **`dataset`**, **`query`**, `mode` = `phrase` (default) \| `term` \| `any` \| `all` (comma-separated terms), `since`, `until`, `level`, `team`, `limit` (default 10) | matching lines newest first: id, ts, node (BGL) or service and instance (OpenStack), level, team, highlighted match, message cut to 300 chars; `total_matches` is the true count. Engineer only |
+| `count_events` | **`dataset`**, `group_by` (any column `describe_data` lists: signature, component, level, team, node, problem, …), `query` + `mode` (engineer only), `since`, `until`, `level`, `team` | `bucket`, `n`; `measure` says whether `n` counts rows (raw relation) or sums the view's measure (aggregated relation) |
+| `episodes` | **`dataset`**, `gap_minutes` (default 5; a parameter for the engineer only), `coalesce_by` = `failure_domain` (default) \| `signature`, `signature`, `since`, `until`, `level`, `team` | one row per incident: signature, failure domain, lines, distinct nodes, started, ended, span; `total_matches` is the incident count |
+| `top_signatures` | **`dataset`**, `by` = `episodes` (default) \| `lines` \| `nodes`, `gap_minutes`, `since`, `until`, `level`, `team` | problems with lines, episodes and blast radius side by side (nodes for BGL, requests affected for OpenStack), ordered by `by` |
+| `trend` | **`dataset`**, `bucket` = `hour` \| `day` (default) \| `week`, `days` (counted back from the data's last timestamp), `since`, `until`, `level`, `team` | `bucket`, `n` per bucket; refuses a bucket finer than the role's relation |
+| `durations` | `dataset` (default `openstack`), `by` = a lifecycle phase (`spawn_s` default, `build_s`, `image_s`, `boot_s`, `run_s`, …; the manager: `spawn_p50_s`, `spawn_p95_s`, `spawn_max_s`, …), `team` | engineer and lead: instances worst first; manager: the distribution per file group, no instance ids. OpenStack only |
+| `ownership` | `dataset`, `team` | the ownership rows (dataset, key_type, key_value, team) and a coverage check against the corpus (unowned keys). Refused for the manager, whose views carry `team` on every row |
+| `nearby_events` | **`dataset`**, `id` or `ts` (one anchor), `minutes` (default 15) | the lines within ±`minutes` of the anchor, the busiest signatures in the window, the id range. Engineer only |
+| `what_changed` | **`dataset`**, `window_hours` (default 6), `baseline_hours` (default 24), `min_lines` | per signature or problem: rate per hour in the window and in the baseline, `rate_ratio`, `is_new`; anchored to the data's last timestamp |
+| `verify_evidence` | **`evidence_id`**, `sample` (default 3) | the stored statement re-run under the stored role and parameters: `match` true/false, rows recorded against rows now, hashes |
+| `lint_answer` | **`answer`** (the draft text), `persona`, `deep` (default false: re-run each cited statement and look for the figures in its rows) | verdict `ok` \| `warnings` \| `rejected`, one row per finding; no evidence id, nothing written to the ledger |
+
+**The envelope.** Every data tool returns the same JSON object: `tool`, `dataset`, `persona`,
+`role` (the database role it ran under), `refused` (true, with the reason in `notes`, when the role
+may not ask this; no SQL runs), `measure` (null = rows counted, else the column summed), `scope` (the
+filters applied), `evidence_id`, `total_matches` (the true total), `returned`, `truncated`,
+`operator` (`phrase (ts_phrase)`, `term`, `any`, `all`, or plain aggregation), `columns`, `rows`,
+`query` (the executed SQL with the parameters bound in) and `notes`. Log text inside `rows` is
+untrusted data and is cut to 300 characters.
 
 The server exposes twelve tools, each returning an **envelope** — the rows plus the SQL, the bound
 parameters, the operator that produced the counts, the true match total, a truncation flag and a
@@ -327,6 +400,13 @@ file's shape comes from its footer in about 2 s. Ten seconds of data, 5,275,597 
 touches S3. One setting decides whether this works on 26.09.1.3: **`SET enable_external_file_cache
 = false`**. With the default, reads are not pruned and big ones crash the server, which is recorded
 with its reproduction in `docs/capabilities.md` §11 rather than left out.
+
+**Amount queried, times and cost** (`bench/README.md`, machine: 16 vCPU, 7.6 GB Docker VM): the
+file is 1,000,000,000 rows and 40,991,166,725 bytes; its shape comes from the 4.8 MB footer in
+1.4–3.3 s; the indexed slice is 5,275,597 rows from 10 of 1,624 row groups, with bytes read and cold
+times per column in the bench table. Cost: the file is read with anonymous HTTPS GETs from a public
+S3 bucket, nothing is downloaded to disk, and no storage, egress or query fee was billed to us — the
+only cost is the machine the index is built on.
 
 ## Disclosure
 

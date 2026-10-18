@@ -20,6 +20,14 @@ make validate           # the ground-truth score, outside the agent
 nearby-events and time-filtered search blocks in the last section are not part of `make demo`
 (they are MCP tool calls); their executed SQL is quoted verbatim so you can paste it into `psql`.
 
+**Two routes to the same numbers.** Each block names its **source**: the view the `make demo` block
+reads (`sql/90_queries.sql`, under the role shown). Where an MCP tool call returns the same figures,
+the call is given with the evidence id it returned against the live endpoint on 18 October 2026;
+evidence ids are a hash of the tool, the statement, its parameters and the persona, so the same call returns the same id
+on any instance, and `verify_evidence` re-runs it. Where a tool works at a different grain (signature
+× midplane rather than signature) or orders differently, the block says so instead of claiming the
+tool printed the table.
+
 Three conventions hold throughout:
 
 - **Every table is truncated.** `make demo` prints the top rows; the tool envelope carries the true
@@ -35,14 +43,14 @@ Three conventions hold throughout:
 | Requirement | Where |
 |---|---|
 | Search and summary tools the agent selects and calls | `src/exhibit/` — 12 tools, MCP server (`make mcp`, `make mcp-http`) |
-| README: clean checkout, dependencies, tool descriptions with inputs and outputs | `README.md` — Quickstart, "Run the agent", "Run the agent" tool table |
+| README: clean checkout, dependencies, tool descriptions with inputs and outputs | `README.md` — Requirements, Quickstart, "Run the agent" (connection variables, starting the agent, tool reference with inputs, outputs and the envelope) |
 | Known limitations | `README.md` §Limitations, `docs/capabilities.md`, the last section here |
 | **One worked investigation: questions, tool calls, SQL, results, role answers** | **this document** |
 | Uses both BGL and OpenStack | W1 (BGL) and W2 (OpenStack) |
 | Full-text search with time filters | §"Full-text search with a time filter" |
 | Nearby events | §"Nearby events: what happened either side" |
 | Grouped counts | W1 E2/E3, L1/L3, M1/M3; W2 E2, L2, L3, M1 |
-| A trend | W1 L4/L4b (weekly incidents, 32 weeks) |
+| A trend | W1 L4/L4b (weekly incidents per signature, 32 weeks, demo SQL); the `trend` tool per day |
 | An aggregation over the whole corpus, not a sample | W1 M1 (348,460 alert lines → 19,250 incidents), L1, L3; W2 M1 |
 | Special award: MCP connection + large-dataset results | `README.md` §Live demo endpoint, §Huge data; `bench/README.md` |
 
@@ -68,7 +76,10 @@ the pair of calendar-day windows in E3, which is stated.
 
 ## The engineer: what is broken, on which machine, and what the line says
 
-**E1 — the loudest signatures by volume.** Tool: `top_signatures(rank_by="lines")`.
+**E1 — the loudest signatures by volume.** Source: `bgl_signature_stats`, one row per signature.
+Through the tools: `top_signatures(dataset="bgl", by="lines")` ranks the same lines at signature ×
+midplane grain, so its top row is the DTLB signature on midplane R30-M0 alone — 152,193 lines,
+6 episodes, 12 nodes (E-C95270).
 
 | signature | alert_category | alert_lines | episodes_5min | nodes_affected | top_node_pct |
 |---|---|---|---|---|---|
@@ -82,8 +93,10 @@ the pair of calendar-day windows in E3, which is stated.
 For DTLB that is 99.64%.
 
 **E2 — full-text search for the phrase, then the same matches by node.** Tools:
-`search_logs(query="data TLB error interrupt", mode="phrase")`, then `count_events(group_by="node")`
-with the same query. The executed predicate:
+`search_logs(dataset="bgl", query="data TLB error interrupt", mode="phrase")`, then
+`count_events(dataset="bgl", query="data TLB error interrupt", group_by="node")` — the second
+returned `total_matches` 152,734 and 152,182 on the top node, operator `phrase (ts_phrase)`
+(E-C6077B). The executed predicate:
 
 ```sql
 SELECT id, ts, node, level, team,
@@ -94,7 +107,8 @@ WHERE content @@ ts_phrase('data TLB error interrupt')
 ORDER BY ts DESC;
 ```
 
-`total_matches` = **152,734**. Grouped by node:
+`total_matches` = **152,734**. Grouped by node (top 3 of 541 nodes shown; truncated — several nodes tie
+at 3 lines, so which two appear after the first varies with the tie order):
 
 | node | lines | first_ts | last_ts | span |
 |---|---|---|---|---|
@@ -102,8 +116,10 @@ ORDER BY ts DESC;
 | R22-M0-N7-C:J04-U01 | 3 | 2005-06-05 04:22:46.993259 | 2005-06-05 07:07:58.954255 | 02:45:11.960996 |
 | R22-M0-N7-C:J09-U01 | 3 | 2005-06-05 04:22:46.682254 | 2005-06-05 07:07:58.855068 | 02:45:12.172814 |
 
-**E3 — one node against the fleet.** Tool: `count_events(group_by="node", ...)`, run over two
-calendar days chosen because they are the corpus's two extremes.
+**E3 — one node against the fleet.** Source: `bgl_ev`, alert lines (`is_alert`) and distinct nodes
+over two calendar days, chosen because they are the corpus's two extremes. Time filters: one whole
+day each (`ts >= TIMESTAMP '2005-06-11' AND ts < TIMESTAMP '2005-06-12'`, likewise for 06-14), every
+alert line, no node filter — on 2005-06-11 every alert line of the day came from one node.
 
 | event | alert_lines | nodes | first_ts | last_ts |
 |---|---|---|---|---|
@@ -115,8 +131,10 @@ DTLB phrase matches **152,182** of them. Both are right, and they differ by one 
 first line is a `machine check interrupt` (category `KERNMC`), not a DTLB line. This is the same
 one-line distinction behind the 152,182 / 152,183 pair used elsewhere in our material.
 
-**E4 — the gap is a parameter.** Tool: `episodes(signature="data TLB error interrupt", gap_minutes=1|5|60)`.
-The gap is not a constant: it is a decision, so we state it every time.
+**E4 — the gap is a parameter.** Source: `bgl_episode_sensitivity`. Through the tools:
+`episodes(dataset="bgl", signature="data TLB error interrupt", gap_minutes=1|5|60)` — at 5 minutes it
+returned `total_matches` 117, the largest incident being 152,182 lines on 1 node over 6:21:47.98
+(E-75AC65). The gap is not a constant: it is a decision, so we state it every time.
 
 | signature | alert_lines | episodes_1min | episodes_5min | episodes_60min | episodes_1min_global | episodes_5min_global | episodes_60min_global |
 |---|---|---|---|---|---|---|---|
@@ -127,7 +145,9 @@ signature only. The demo's headline table uses the 5-minute gap.
 
 ## The team lead: whose work is it, and is it getting worse
 
-**L1 — ownership.** Tool: `ownership(dataset="bgl")`, from the team map in `data/ownership.csv`
+**L1 — ownership.** Source: `ownership_coverage`. Through the tools: `ownership(dataset="bgl",
+persona="lead")` returns the 10 BGL rows of the map and the coverage check, 0 unowned (E-2CB216).
+The map is `data/ownership.csv`
 (logger → service → component → team; our construction, 100% coverage, documented in
 `README.md` §The ownership table).
 
@@ -140,7 +160,9 @@ signature only. The demo's headline table uses the 5-minute gap.
 | site-infrastructure | component | 5,148 | 0.11 | 0 | 0 |
 | network-fabric | component | 1,173 | 0.02 | 206 | 0.06 |
 
-**L2 — ranked by incidents, not lines.** Tool: `top_signatures(rank_by="episodes", gap_minutes=5)`.
+**L2 — ranked by incidents, not lines.** Source: `bgl_signature_stats`, ordered by `episodes_5min`.
+Through the tools: `top_signatures(dataset="bgl", by="episodes", persona="engineer")`, which works
+per signature × midplane, so its rows split these totals by midplane.
 
 | signature | team | episodes_5min | alert_lines | nodes_affected | peak_nodes_per_episode | active_days |
 |---|---|---|---|---|---|---|
@@ -151,8 +173,10 @@ signature only. The demo's headline table uses the 5-minute gap.
 | ciod: Error reading message prefix after LOGIN_MESSAGE on CioStr | workload-runtime | 1,042 | 5,683 | 1,024 | 8 | 10 |
 | rts: kernel terminated for reason {n}rts: bad message header: in | compute-platform | 963 | 3,334 | 1,255 | 31 | 10 |
 
-**L3 — lines against incidents, per team.** Tool: `count_events(group_by="team")`. This is the
-whole-corpus aggregation, not a sample.
+**L3 — lines against incidents, per team.** Source: `bgl_signature_stats` grouped by team. This is
+the whole-corpus aggregation, not a sample. Through the tools, the alert-line column is
+`count_events(dataset="bgl", group_by="team", persona="manager")`: 348,460 summed over
+`alert_lines`, the same five figures (E-5ACE40).
 
 | team | signatures | alert_lines | pct_alert_lines | episodes_5min | pct_episodes |
 |---|---|---|---|---|---|
@@ -162,8 +186,12 @@ whole-corpus aggregation, not a sample.
 | observability | 5 | 15 | 0 | 14 | 0.07 |
 | storage-platform | 1 | 3 | 0 | 2 | 0.01 |
 
-**L4 — the trend.** Tool: `trend(bucket="week", gap_minutes=5)`, anchored on the corpus's last week,
-never on today. `slope_per_week` is `regr_slope` over every week with zero weeks included.
+**L4 — the trend.** Source: `bgl_incident` (incidents at a 5-minute gap), per signature per week,
+anchored on the corpus's last week, never on today. `slope_per_week` is `regr_slope` over every week
+with zero weeks included. This per-signature weekly incident trend is demo SQL: the `trend` tool
+buckets one measure over time for the whole selection, and for the lead it works per day, because
+the lead's relation is daily — `trend(dataset="bgl", bucket="week", persona="lead")` is refused
+with that reason (E-11B91D), and `bucket="day"` is the call that runs.
 
 | signature | weeks | active_weeks | incidents | peak_week_incidents | slope_per_week | last_9_weeks |
 |---|---|---|---|---|---|---|
@@ -190,15 +218,20 @@ never on today. `slope_per_week` is `regr_slope` over every week with zero weeks
 
 ## The manager: what first, and why believe it
 
-**M1 — lines into incidents, over the whole corpus.** Tool: `episodes(gap_minutes=5)`.
+**M1 — lines into incidents, over the whole corpus.** Source: `mgr_bgl_risk`. Through the tools:
+`episodes(dataset="bgl", gap_minutes=5, persona="engineer")` returns `total_matches` 19,250
+(E-55EF08, the README's transcript); at 1 and 60 minutes the same call returns 22,002 and 14,479.
 
 | alert_lines | incidents_5min | lines_per_incident |
 |---|---|---|
 | 348,460 | 19,250 | 18.1 |
 
-**M2 — ranked by blast radius and persistence.** Tool:
-`top_signatures(rank_by="nodes")`; order is `rank_blast_radius + rank_persistence`, dense ranks over
-the corpus. A ranking of measured factors, not an impact estimate. The last row is the loudest by
+**M2 — ranked by blast radius and persistence.** Source: `mgr_bgl_risk`; order is
+`rank_blast_radius + rank_persistence`, dense ranks over the corpus. A ranking of measured factors,
+not an impact estimate. Through the tools, `top_signatures(dataset="bgl", by="nodes",
+persona="manager")` orders by blast radius **alone**, and there the 2005-06-14 fleet event comes first
+— KERNSTOR, 22,529 nodes, 133 episodes, 63,491 lines (E-CBBD7A). Adding persistence (active days)
+to the rank is what reorders the list below. The last row is the loudest by
 lines, shown for contrast. The manager's view carries no log text and no node IDs — signatures are
 identified by a hash (`signature_id`) and category.
 
@@ -211,7 +244,8 @@ identified by a hash (`signature_id`) and category.
 | 5 | 9 | f2a70c4b0587 | KERNMNTF | KERNEL | compute-platform | 1,024 | 16 | 937 | 5,105 | 0.33 | 16 |
 | 12 | 1 | 38a7307dd55b | KERNDTLB | KERNEL | compute-platform | 541 | 11 | 117 | 152,734 | 99.64 | 23 |
 
-**M3 — who owns the alert lines.**
+**M3 — who owns the alert lines.** Tool: `count_events(dataset="bgl", group_by="team",
+persona="manager")` — `measure` = `alert_lines`, total 348,460, the same five rows (E-5ACE40).
 
 | team | alert_lines | pct_alert_lines |
 |---|---|---|
@@ -229,9 +263,9 @@ The demo closes this section with the line the manager's view is required to car
 
 **Engineer.** The loudest signature, `data TLB error interrupt`, is not a fleet problem. 152,734
 lines match the phrase; 152,182 of them (99.64%) come from one node, `R30-M0-N9-C:J16-U01`, inside a
-single burst from 2005-06-11 17:17:44.898 to 23:39:32.878 — 6 h 21 m 47.98 s. The other two nodes
-that ever logged the phrase logged 3 lines each, four days earlier. Counting incidents rather than
-lines at a 5-minute gap makes it 117, not 152,734.
+single burst from 2005-06-11 17:17:44.898 to 23:39:32.878 — 6 h 21 m 47.98 s. The phrase was
+logged on 541 nodes in all, but no other node logged more than 3 lines of it. Counting incidents
+rather than lines at a 5-minute gap makes it 117, not 152,734.
 
 *Recommended action:* treat this as one incident on one machine. Pull that node
 (`R30-M0-N9-C:J16-U01`, midplane `R30-M0`) for hardware attention, and read the events either side
@@ -293,7 +327,8 @@ duration of a server build (`image_s` + `boot_s`), taken from the request lines 
 
 ## The engineer: what is broken, and what the line says
 
-**E1 — latency cannot see the anomaly.** Tool: `durations(metric="api_latency_s", group_by="file")`.
+**E1 — latency cannot see the anomaly.** Source: `os_latency_by_file` (API request latency per
+source file). This one is demo SQL only: `durations` ranks server lifecycle phases, not API latency.
 
 | file_group | api_calls | mean_s | p50_s | p95_s | p99_s |
 |---|---|---|---|---|---|
@@ -302,7 +337,8 @@ duration of a server build (`image_s` + `boot_s`), taken from the request lines 
 
 The two files are the same to three decimal places.
 
-**E2 — the whole error surface.** Tool: `count_events(group_by="level")`.
+**E2 — the whole error surface.** Tool: `count_events(dataset="openstack", group_by="level")` —
+`total_matches` 207,812, the same four rows (E-D11BAA). A whole-corpus aggregation.
 
 | level | lines |
 |---|---|
@@ -317,7 +353,9 @@ The two files are the same to three decimal places.
 
 ## The team lead: which work is whose, and what the trend says
 
-**L1 — ranked by spawn time.** Tool: `durations(metric="spawn_s", rank=...)`.
+**L1 — ranked by spawn time.** Tool: `durations(by="spawn_s", persona="lead")` — the same five
+instances in the same order with the same `spawn_s`, out of `total_matches` 2,069 (E-0FFA3A). The
+`image_s` and `boot_s` columns come from the demo block over `os_instance_durations`.
 
 | position | instance_id | spawn_s | image_s | boot_s | source_file |
 |---|---|---|---|---|---|
@@ -327,14 +365,15 @@ The two files are the same to three decimal places.
 | 4 | ae651dff-c7ad-43d6-ac96-bbcd820ccca8 | 29.46 | 22.444 | 7.014 | openstack_abnormal.log |
 | 5 | d7d68893-c44f-4e7c-8d4b-0e7801d62776 | 26.69 | 19.808 | 6.881 | openstack_abnormal.log |
 
-**L2 — the distribution those five sit outside of.** Tool: `durations(metric="phases")`, over every
-instance with both ends present.
+**L2 — the distribution those five sit outside of.** Source: `os_instance_durations`, percentiles
+over every instance with both ends present (demo SQL).
 
 | spawned | spawn_p50_s | image_p50_s | boot_p50_s |
 |---|---|---|---|
 | 2,066 | 19.74 | 13.08 | 6.648 |
 
-**L3 — the problems above INFO, with ownership.** Tool: `top_signatures(dataset="openstack")`.
+**L3 — the problems above INFO, with ownership.** Source: `os_problem_incidents`. The tool route is
+`top_signatures(dataset="openstack")`; its manager form is shown with its evidence id in M1.
 
 | problem | team | worst_level | incidents_5min | records | tracebacks | lines |
 |---|---|---|---|---|---|---|
@@ -344,16 +383,19 @@ instance with both ends present.
 | vcpu count unavailable (cpu affinity) | compute-platform | WARNING | 10 | 12 | 0 | 12 |
 | image cache: unknown base file | image-service | WARNING | 3 | 3,059 | 0 | 3,059 |
 
-Note the fourth row: one root cause, two owners. The `image cache: unknown base file` warnings are
-logged by `nova.virt.libvirt.imagecache` (image-service); the `image cache pass failed
-(InvalidDiskInfo)` tracebacks are logged by `oslo_service.periodic_task`
-(platform-services). Our ownership rule is logger-first, so it splits the same bug across two teams
-— a fact worth stating rather than smoothing over.
+Note rows 2 and 5: two image-cache problems, two owners. The `image cache: unknown base file`
+warnings are logged by `nova.virt.libvirt.imagecache` (image-service); the `image cache pass failed
+(InvalidDiskInfo)` tracebacks are logged by `oslo_service.periodic_task` (platform-services). Our
+ownership rule is logger-first, so it assigns them to different teams. *Hypothesis, not
+established:* that they share one root cause — if they do, one bug is split across two teams, which
+is worth stating rather than smoothing over.
 
 ## The manager: what first, and why believe it
 
-**M1 — problems by severity and incidents.** Tool: `top_signatures(dataset="openstack", persona="manager")`.
-The manager's view holds no log text and no instance IDs.
+**M1 — problems by severity and incidents.** Source: `mgr_os_risk`, ordered by worst level. Through
+the tools: `top_signatures(dataset="openstack", persona="manager")` returns the same five problems
+with the same lines and incidents, ordered by incidents instead (power-state sync first), not
+truncated (E-6C1558). The manager's view holds no log text and no instance IDs.
 
 | problem | service | team | worst_level | incidents_5min | records | tracebacks | lines | critical_lines | error_lines | warning_lines |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -363,7 +405,9 @@ The manager's view holds no log text and no instance IDs.
 | vcpu count unavailable (cpu affinity) | nova-compute | compute-platform | WARNING | 10 | 12 | 0 | 12 | 0 | 0 | 12 |
 | image cache: unknown base file | nova-compute | image-service | WARNING | 3 | 3,059 | 0 | 3,059 | 0 | 0 | 3,059 |
 
-**M2 — the same distribution, split by file**, which is why the file split is not the signal:
+**M2 — the same distribution, split by file**, which is why the file split is not the signal.
+Source: `mgr_os_lifecycle`. Through the tools: `durations(by="spawn_max_s", persona="manager")` —
+abnormal 197 spawned, max 50.72 s; normal 1,869 spawned, max 22.56 s (E-799540).
 
 | file_group | spawned | spawn_p50_s | spawn_p95_s | spawn_max_s | image_p50_s | image_max_s |
 |---|---|---|---|---|---|---|
@@ -386,8 +430,9 @@ problems: 184 are 8 tracebacks of one image-cache bug, and 4 are 2 failed token 
 only CRITICAL lines in the corpus.
 
 *Recommended action:* stop filtering on level for this corpus. Rank instances by lifecycle
-duration instead (below), and treat the 3,059 `unknown base file` warnings as the same image-cache
-root cause as the tracebacks even though a different logger emits them.
+duration instead (below), and check whether the 3,059 `unknown base file` warnings share the
+tracebacks' cause (a hypothesis: same subsystem, different logger) before treating them as one
+problem.
 
 **Team lead.** Spawn time separates cleanly: the slowest instances run 50.72 s, 41.81 s, 31.27 s and
 29.46 s against a median of 19.74 s over 2,066 instances, and the binding phase is the image phase —
@@ -406,8 +451,9 @@ adds 3,059 lines under a second team. The 2 CRITICAL lines belong to `token vali
 (identity server 503)`, owned by identity — the smallest problem by volume and the highest by
 severity.
 
-*Recommended action:* fix the image-cache bug once; it is one root cause spanning two owners
-(3,059 + 184 lines and 8 tracebacks). Then look at the power-state sync, which is the largest count.
+*Recommended action:* fix the image-cache failure first (8 tracebacks, 184 ERROR lines), and
+have image-service and platform-services check together whether the 3,059 warnings share its
+cause — a hypothesis, not established. Then look at the power-state sync, the largest incident count.
 Treat the 2 CRITICAL token failures as a priority despite their 6 lines.
 
 *What this does not establish:* how the anomalies were injected, user impact, cost.
@@ -419,7 +465,7 @@ Treat the 2 CRITICAL token failures as a priority despite their 6 lines.
 | 4 instances spawn in 50.72–29.46 s against a 19.74 s median (n = 2,066) | that these four are the *only* slow builds; 26.69 s at position 5 is unlabelled |
 | the image phase, not the boot phase, explains the difference (44.454 s against 13.08 s median) | why the image phase is slow — the logs give durations, not causes |
 | 184 ERROR lines are 8 identical tracebacks of `InvalidDiskInfo` | that they are 8 separate incidents rather than 8 periodic passes of one ongoing condition |
-| 3,059 `unknown base file` warnings share the image-cache root cause | that they are the same defect; they share a module and a file path |
+| 3,059 `unknown base file` warnings (`nova.virt.libvirt.imagecache`) and the 8 `InvalidDiskInfo` tracebacks are both image-cache problems, under different loggers and owners | that they share one root cause |
 | the 2 CRITICAL lines refuse an API call (token validation) | that the service was down; we observe 2 failed validations, not the outage behind them |
 | latency is identical between the normal and abnormal files | that latency is not affected at all — only that this corpus's API latency does not separate them |
 
@@ -521,11 +567,12 @@ against 0.4065 precision for a FATAL-or-FAILURE filter.
   names, checked for coverage against the corpus rather than supplied by the organisers. It is a
   demonstration of the ownership dimension, not a claim about a real organisation.
 - **BGL's label column is incomplete.** 84,253 lines carry the `-` "normal" label while containing
-  `ASSERT` text. We detect alerts from message signatures as well as the label, which is why our
-  alert count (348,460) exceeds the labelled count.
-- **The incident count is a function of the gap.** 348,460 alert lines are 132 / 117 / 57 incidents
-  for one signature at 1 / 5 / 60 minutes; corpus-wide it is 19,250 at 5 minutes. Every answer
-  states its gap.
+  `idoproxydb hit ASSERT condition`. Our alert count (348,460) *is* the label's count
+  (`alert_category <> '-'`), so those lines are not in it, and no alert-line figure here includes
+  them.
+- **The incident count is a function of the gap.** The DTLB signature's 152,734 lines are
+  132 / 117 / 57 incidents at 1 / 5 / 60 minutes; corpus-wide, 348,460 alert lines are
+  22,002 / 19,250 / 14,479. Every answer states its gap.
 - **A blast radius is a peak, not a sum.** `nodes_affected` counts distinct machines per signature
   or incident; adding those numbers across rows is meaningless and the server refuses to do it.
 - **OpenStack problem lines carry no instance id.** Instance ids appear on 51,553 of 207,812 lines

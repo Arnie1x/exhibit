@@ -1,6 +1,6 @@
 # CLAUDE.md — Exhibit (team "Logging off Early")
 
-Exhibit is role-aware log intelligence on SereneDB for the SchubKI National AI Hackathon 2026 (SereneDB challenge "Making Sense of Logs"). Team: Arnie (Arnie1x) and Adnan (AdnanSN); repo github.com/Arnie1x/exhibit, private until submission. Deadline: Sunday 18 Oct, 23:59.
+Exhibit is role-aware log intelligence on SereneDB for the SchubKI National AI Hackathon 2026 (SereneDB challenge "Making Sense of Logs"). Team: Arnie (Arnie1x) and Adnan (AdnanSN); repo github.com/Arnie1x/exhibit, public for submission. Deadline: Sunday 18 Oct, 23:59.
 
 **Mission: SQL computes, the LLM explains.** Every figure in an answer comes from SQL that ran, travels in a result envelope with an evidence ID, and can be re-run. An answer whose numbers are not in the tool output is rejected.
 
