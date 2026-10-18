@@ -51,6 +51,12 @@ make smoke
 make mcp
 ```
 
+**There is no supplied loader, schema or ownership table, and no shared instance.** That is the
+organisers' own guidance: you run SereneDB locally and build those three pieces yourself. So
+`make fetch` pulls the corpora from Loghub (Zenodo record 8196385) and **our** loader is
+`scripts/parse.py` + `sql/10_derive.sql` — BGL 4,747,963 of 4,747,963 lines, OpenStack 207,812 of
+207,820 (the eight unusable lines are documented in `docs/data-notes.md`).
+
 `psql -h 127.0.0.1 -p 7890 -U postgres` — no password, because of that one env var. **Without it
 the container's default host auth demands a password even on loopback** (Docker Desktop forwards
 `127.0.0.1:7890` from the bridge, which the default HBA treats as remote), and you get
@@ -88,6 +94,7 @@ because a Windows console's default code page cannot print the checks' output.
 | `pyproject.toml` | uv project; `mcp` 2.x (`MCPServer`) + psycopg 3 | done |
 | `data/ownership.csv` | **The team-ownership table** (see below) | done |
 | `sql/90_queries.sql` | The reference investigations, as the demo runs them | done, `make demo` |
+| `docs/worked-investigation.md` | **The written worked investigation**: both questions, every tool call, the executed SQL, the results, the three role answers with recommended actions, scope and filters, observed facts separated from hypotheses | done |
 | `tests/golden/` | Independent SQL (written without the views) for the headline, Stage 3, W2 and slide numbers | done, 76/76 and 46/46 rows true; 17/17 slide claims |
 | `evals/` | **The evaluation set**: 15 questions, hand-written golden SQL, one score | done, `make eval` → 15/15 |
 | `scripts/validate_ground_truth.py` | **Ground truth, outside the agent**: `anomaly_labels.txt` vs the `durations` ranking; BGL label vs text-only signatures | done, `make validate` → 13/13 |
@@ -233,6 +240,12 @@ make bench             # the 1B-row remote file: a slice indexed in place, bytes
 Judges can reproduce every claim from a clean checkout: the derive, the index, the
 investigations and the agent are all in this repo, and `make clean-check` runs the whole
 sequence in a fresh clone.
+
+**[`docs/worked-investigation.md`](docs/worked-investigation.md) is the written worked investigation**
+the submission asks for: the two questions (W1 over BGL, W2 over OpenStack), every tool call with the
+executed SQL, the results, then the answers and recommended actions for the engineer, team lead and
+manager — with the data scope, time periods and filters stated, truncation called out, and observed
+facts separated from hypotheses. `make demo` prints the same numbers.
 
 ## The answer lints
 
