@@ -329,6 +329,10 @@ def top_signatures(
         # measured, not assumed: this dataset's problem lines carry no instance id at all
         return _refused("top_signatures", dataset, p, spec.nodes_unmeasurable, scope)
     limit = _clamp(limit)
+    # `by=nodes` must order by the column's *output* name, not the logical one: some relations
+    # rename it (the OpenStack manager's blast radius counts requests_affected, not machines), and
+    # ordering by the logical name "nodes" against such a relation is a column-not-found error.
+    order_by = spec.node_label if metric == "nodes" else metric
     grain = list(spec.grain or (spec.key,))
     grain_sql = ", ".join(grain)
     cols = list(dict.fromkeys([*grain, *spec.extra]))
@@ -343,7 +347,7 @@ def top_signatures(
         sel = ", ".join([grain_sql, *spec.extra]) if spec.extra else grain_sql
         sql = (f"SELECT {sel}, {spec.lines} AS lines, {spec.episodes} AS episodes,"
                f" {spec.nodes} AS {spec.node_label} FROM {spec.relation}{where}"
-               f" GROUP BY {sel} ORDER BY {metric} DESC LIMIT %s")
+               f" GROUP BY {sel} ORDER BY {order_by} DESC NULLS LAST, {grain_sql} LIMIT %s")
         rows = db.query(sql, [*params, limit], role=p.role)
         total = db.scalar(
             f"SELECT count(*) FROM (SELECT {sel} FROM {spec.relation}{where} GROUP BY {sel}) g",
@@ -380,7 +384,7 @@ SELECT {", ".join(cols)}, count(*) AS lines, count(DISTINCT episode_no) AS episo
        {spec.nodes} AS {spec.node_label}
 FROM numbered
 GROUP BY {", ".join(cols)}
-ORDER BY {metric} DESC
+ORDER BY {order_by} DESC NULLS LAST, {", ".join(cols)}
 LIMIT %s"""
         rows = db.query(sql, [gap, *params, limit], role=p.role)
         total = db.scalar(
