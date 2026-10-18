@@ -1,6 +1,6 @@
 # PROGRESS — Adnan's lane
 
-Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0–6 merged to `main`; the MCP server also runs as a live HTTP demo endpoint (round 6 below). Left: deck export, video, submission §15
+Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0–6 merged to `main`; the MCP server also runs as a live HTTP demo endpoint (round 6 below); deck v2 (17 slides, Canva) exported to `docs/slides.pdf` and the video script rewritten for it (item 9). Left: record the video, submission §15
 
 ## Stage log (team plan §11)
 
@@ -14,7 +14,7 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0
 | Sleep | Sun 00:00–08:00 | OTel bench in the background | Bench done Sat evening instead (item 7) |
 | 5 Validation, eval | Sun 08:00–12:00 | Ground-truth validation script | Done Sat 16:25: `scripts/validate_ground_truth.py` (item 6). PLAN §11 called it done earlier, but the script had never been committed |
 | 6 README, clean-check, slides | Sun 12:00–15:00 | Data, loader, ownership, limitations sections | Done Sat evening (item 8): LICENSE, README fixes, the slide deck, fresh clone on Windows |
-| 7 Video | Sun 15:00–19:00 | Real numbers on screen | |
+| 7 Video | Sun 15:00–19:00 | Real numbers on screen | Deck v2 and script done Sun 16:00 (item 9): 17 slides, `docs/slides.pdf`, `docs/video-script.md` (5:00 and 3:00 cuts, timed); recording left |
 | 8 Submission | Sun 19:00–22:00 | Team plan §15 checklist | |
 
 ## Requirements tracker (brief + team plan §15)
@@ -33,7 +33,7 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0
 | Public repo, MIT licence, README covering workflow, setup, running and limitations | ◐ public at submission | `LICENSE` (item 8), README quickstart, Windows note, limitations |
 | Disclosure section: models, tools, what was built in the window | ☑ | `docs/disclosure.md` (Arnie) |
 | Worked investigations W1 and W2 with search and aggregation, and what the data does and does not establish | ☑ | `make demo`; `docs/validation.md`; "Not established" per manager step |
-| Video of at most 5 minutes plus a 3-minute cut, and slides | ◐ slides done, video is stage 7 | slide deck (item 8), every number with its source command |
+| Video of at most 5 minutes plus a 3-minute cut, and slides | ◐ slides v2 and script done, recording left | `docs/slides.pdf` (17 slides, item 9), `docs/slides.md` (every figure → its command), `docs/video-script.md` (both cuts, timed, narration = the slides' speaker notes) |
 | SereneDB starred on GitHub; docs MCP connected | ◐ docs MCP connected (`.mcp.json`, used for the bench) | starring is a click each of us makes |
 | Optional: workspace index (re-probed; result reported either way) | ◐ re-probed, not a tool | `docs/capabilities.md` §3 (partial index restricts on pattern B) |
 | Optional: huge data (OTel Parquet) with data volume, times and machine | ☑ | `make bench`, `make bench-ladder`, `bench/README.md`, `docs/capabilities.md` §11 (item 7) |
@@ -146,6 +146,17 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0
   | Fresh clone runs the whole sequence | `git clone` of this branch into the scratchpad; the Makefile recipes by hand (no `make`): derive, index, views, roles, evidence, smoke, demo, `uv sync`, check, client, eval, validate, bench | all exit 0; bootstrap 25 s; smoke and demo identical to the reference logs; 101/101; client PASS; 15/15; 13/13; bench 92 s | PASS |
   | Every number on a slide independently re-derived | `sql-verifier`, fresh SQL on the raw Parquet (views only where the claim is about a view), 17 claim groups | **17/17 MATCH**; one wording fix applied: the 3,638 belongs to ciod `… Link has been severed` (two other signatures share the CioStream prefix: 588 and 443) | PASS |
   | Slides | 13 slides, each footer names the command behind its figures | published; shared with Arnie is a click on Share | PASS |
+
+- **Item 9, deck v2 and the video script (Sun 18 Oct, 14:30–16:00).** Branch `slides-v2-adnan` off `main` (`dc59a95`). The 13-slide deck predated the MCP packaging, the live endpoint and the Q&A ruling, so both deck and script were rebuilt from scratch. The deck is a Canva presentation ("Exhibit: SQL computes, the LLM explains", developer-terminal template chosen from three generated style directions; the light editorial one failed on Canva's side), exported to `docs/slides.pdf` (17 pages). Canva's generator filled the template with invented figures ("4.7M ≠ 4.7M", "62%", a `q_7f31` query id) and two charts of made-up data; every text box was rewritten from the logs and both charts were redrawn as bars from SQL rows. `sql/90_queries.sql` gains **L4b** (the weekly bars behind the slide 10 chart, under the lead role); `docs/slides.md` maps every figure to its command; `docs/video-script.md` is rewritten for the 17 slides (new units: how to connect and the live endpoint, "the data wins"; "still active" instead of "growing" for ciod; 688 / 417 spoken words for the 5:00 / 3:00 cuts, counted with numbers read aloud). The speaker notes on each slide are the script's narration.
+
+  | Acceptance (item 9) | Command or proof | Result | Verdict |
+  | --- | --- | --- | --- |
+  | Numbers re-measured on today's code | fresh bootstrap (15.8 s), then smoke, demo, check, stock client, eval, validate; check, client, eval, validate again on `dc59a95` | all exit 0; 101/101; client PASS; 15/15; 13/13; every figure as on 17 Oct | PASS |
+  | Every number on a slide traced | all slide text pulled from the Canva draft, each numeric token looked up in today's logs, `bench/README.md` and the code | 17 slides, 0 tokens unmatched; placeholders gone from the exported PDF | PASS |
+  | New figures independently re-derived | `sql-verifier`, fresh SQL on `bgl_ev` / `os_ev` without the views: slide 10 bars, DTLB 541 nodes and 11 days, 18.1 lines per incident, spawn median 19.74 s, fifth place 26.69 s | **24/24 match** (`docs/VERIFY.md`) | PASS |
+  | Weekly chart reproducible | `make demo` L4b | Lustre 1,872 · 1,244 · 551 = 3,667; ciod 213 · 1,110 · 789 · 136 · 900 · 186 · 286 · 18 = 3,638; rest of `make demo` unchanged | PASS |
+  | Live endpoint as the slide claims | MCP client over streamable HTTP: initialize, list_tools, count_events ×3, search_logs as lead, episodes, verify_evidence | 12 tools; `E-4BDFE1`, `E-3CDBEC`, `E-EEAF08`, `E-55EF08` identical to the local run; MATCH; 5 of 6 runs clean, 1 `SSE stream ended without a response` at list_tools | PASS (flake handed to Arnie) |
+  | Script fits both slots | word count per unit at 150 wpm | 5:00: 275 s of narration in 294 s; 3:00: 167 s in 176 s | PASS |
 
 ## Decisions
 
@@ -569,7 +580,23 @@ requests_affected, and `by='nodes'` is how you order by it", and the tool descri
 up front. Verified on the live endpoint: the fixed call returns 5 rows (top: power-state sync, 45/45),
 and the pointer refusal carries the right sentence.
 
+## Handoff to Arnie, round 8 — deck v2, the script, and two small findings (Adnan, Sun 18 Oct)
 
+Branch **`slides-v2-adnan`** (item 9). The submission deck is now `docs/slides.pdf` (17 slides,
+Canva; the 17 Oct artifact deck is superseded) and `docs/video-script.md` is rewritten for it — the
+narration is also each slide's speaker notes. Nothing in your files changed; `sql/90_queries.sql`
+gained L4b (the weekly bars on slide 10), and the rest of `make demo` prints exactly as before.
+`make check` 101/101, `make eval` 15/15, `make validate` 13/13 on `dc59a95`.
+
+**Found, not edited (your call each):**
+
+- **Live endpoint, one flake in six.** Six full MCP sessions from this box over streamable HTTP;
+  one died at `list_tools` with `SSE stream ended without a response` (the other five returned the
+  same evidence ids as a local run). Possibly the funnel or the stateless mode dropping a stream;
+  the script tells the recorder to retake if it happens on camera.
+- `src/exhibit/tools.py:254` — `search_logs` returns `left(<search column>, 400)`, while CLAUDE.md rule 8
+  and `analytics.TEXT_CHARS` say 300. Slide 6 says "log text quoted, never dumped", which holds
+  either way; one number would make the rule and the code agree.
 
 ## Round 9 — judge-style battery findings (Sun, before submission)
 
