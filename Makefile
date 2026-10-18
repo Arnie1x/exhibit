@@ -13,7 +13,7 @@ BENCH_SECONDS ?= 1
 # UnicodeEncodeError on the first one. UTF-8 mode is a no-op on Linux and macOS.
 export PYTHONUTF8 := 1
 
-.PHONY: help setup doctor up down fetch parse probe derive index bootstrap smoke demo bench bench-ladder eval validate roles evidence mcp check clean-check
+.PHONY: help setup doctor up down fetch parse probe derive index bootstrap smoke demo bench bench-ladder eval validate roles evidence mcp mcp-http check clean-check
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-13s\033[0m %s\n", $$1, $$2}'
@@ -64,6 +64,9 @@ setup: ## create the venv and install dependencies (uv)
 
 mcp: ## run the exhibit MCP server on stdio (point any MCP client at it)
 	uv run exhibit-mcp
+
+mcp-http: ## run it as a streamable-HTTP endpoint on 127.0.0.1:8900/mcp (the demo path)
+	EXHIBIT_MCP_TRANSPORT=streamable-http uv run exhibit-mcp
 
 check: ## Stage 2 acceptance: tool numbers vs make smoke, then a stock MCP client
 	uv run exhibit-check

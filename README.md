@@ -187,6 +187,24 @@ problem entirely, which is the finding the whole project is built around.
 > And a role that may not read something gets `refused: true` with the reason, because the database
 > said no — not because a system prompt asked nicely.
 
+## Live demo endpoint
+
+The same server also runs as a public streamable-HTTP endpoint, so a judge — or a teammate —
+can connect an MCP client to the running system without cloning anything:
+
+- **URL:** `https://hermes.bushbaby-platy.ts.net:10000/mcp` (streamable HTTP)
+- Point any MCP client that speaks HTTP at it — the usual `mcpServers` shape:
+
+  ```json
+  { "mcpServers": { "exhibit-demo": { "type": "http", "url": "https://hermes.bushbaby-platy.ts.net:10000/mcp" } } }
+  ```
+
+- The endpoint is an MCP tool surface only: read-only queries, and the same engine-enforced
+  personas — the `persona` argument still decides which database role runs the query.
+- Locally the same mode is `make mcp-http` (`127.0.0.1:8900/mcp`); the mechanism is
+  `EXHIBIT_MCP_TRANSPORT=streamable-http uv run exhibit-mcp`. The demo instance runs under
+  systemd on the team's box for the duration of the challenge.
+
 ## The ownership table
 
 The challenge supplies none, so we invented one and documented it in

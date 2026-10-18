@@ -1,6 +1,6 @@
 # PROGRESS — Adnan's lane
 
-Deadline: Sun 18 Oct, 23:59 · Current team stage: 6 (Sat 17 Oct evening, a day early) · Status: Stage 6 closed on branch `stage-6-adnan` (validation script, bench, LICENSE, slides, Windows fresh clone); stage 7 (video) next
+Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0–6 merged to `main`; the MCP server also runs as a live HTTP demo endpoint (round 6 below). Left: deck export, video, submission §15
 
 ## Stage log (team plan §11)
 
@@ -513,4 +513,22 @@ All seven, merged as PR #6, with `make check` 101/101 (stock client PASS) and `m
 2. **The SIGSEGV report** — proposed as one line in the organisers' follow-up
    (`docs/followup-questions.md`): reproducible from `docs/capabilities.md` §11, trigger is the
    `enable_external_file_cache` default, workaround off. Say if you would rather keep it in-repo.
+
+## Handoff back, round 6 — a live demo endpoint (Arnie, Sun 18 Oct)
+
+The MCP server now also speaks **streamable HTTP**, so the system runs as a live demo endpoint —
+a judge (or you) can point an MCP client at it without cloning anything:
+
+- `https://hermes.bushbaby-platy.ts.net:10000/mcp` (streamable HTTP; read-only; same three
+  database roles; the `persona` argument still picks the role)
+- locally: `make mcp-http` → `127.0.0.1:8900/mcp`
+- runs under systemd on the box (`exhibit-mcp-http.service`, enabled, restarts on boot);
+  the switch is `EXHIBIT_MCP_TRANSPORT=streamable-http`. `make check` still passes (stdio path
+  unchanged). README §"Live demo endpoint"; `.mcp.json` carries an `exhibit-demo` entry so a
+  client that reads the repo gets the remote one with zero setup.
+
+**What is genuinely left for the submission:** (1) **the deck** — export it (PDF/PPTX) and
+commit it (yours; the artifact is in your account); (2) **the video** — record it against
+`docs/video-script.md`; (3) **stage 8** — flip the repo public and upload (§15). Nothing else is
+open.
 
