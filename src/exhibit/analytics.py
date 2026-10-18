@@ -27,6 +27,7 @@ from decimal import Decimal
 from typing import Any
 
 import psycopg
+from mcp.server.mcpserver.exceptions import ToolError
 
 from . import db, ledger
 from .datasets import (
@@ -202,10 +203,16 @@ ORDER BY lines DESC, started, {part_sql}"""
     shown = rows[:limit]
     line_total = sum(int(r["lines"]) for r in rows)
 
+    collapse = (
+        f"{line_total:,} lines collapse into {total:,} incidents at this gap — volume overstates "
+        f"incidents roughly {line_total / total:,.0f}x here"
+        if total else
+        f"no incidents match these filters at a {gap}-minute gap — nothing to collapse; widen the "
+        f"signature or time filters, or check the argument spelling"
+    )
     notes = [
         f"one row = one incident: {part_sql} that did not fall quiet for more than {gap} minute(s)",
-        f"{line_total:,} lines collapse into {total:,} incidents at this gap — volume overstates "
-        f"incidents roughly {line_total / total:,.0f}x here",
+        collapse,
         f"the gap is a real parameter for {p.key} because {p.key} reads {src.relation}; "
         f"recomputed here rather than read from a prebuilt view",
         src.note,
@@ -815,6 +822,13 @@ def verify_evidence(evidence_id: str, sample: int = 3) -> dict:
             ),
             "note": "only happens on a database bootstrapped before sql/55_evidence.sql existed",
         }
+    except KeyError as exc:
+        # an id that was never issued is exactly what this check exists to catch, so it must fail
+        # loudly -- as a ToolError (reason visible to the caller), never an opaque crash
+        raise ToolError(
+            f"{exc} -- every answer prints an id like E-1A2B3C; an id that was never issued cannot "
+            f"be verified. Reprint the answer it came from and use that id"
+        ) from exc
     result["note"] = (
         "a mismatch is not a bug in the ledger — it means the corpus or the definition moved since "
         "the answer was given, which is what a reader wants to know"

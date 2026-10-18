@@ -13,6 +13,7 @@ import sys
 from typing import Any
 
 import psycopg
+from mcp.server.mcpserver.exceptions import ToolError
 
 from . import analytics, db, ledger, lint, tools
 from .datasets import catalogue
@@ -290,9 +291,10 @@ def main() -> int:
           analytics.verify_evidence(ep5["evidence_id"])["match"], True)
     try:
         analytics.verify_evidence("E-NOPE00")
-        check("an unknown evidence id errors instead of guessing", "no error", "KeyError")
-    except KeyError:
-        check("an unknown evidence id errors instead of guessing", "KeyError", "KeyError")
+        check("an unknown evidence id errors instead of guessing", "no error", "an error, or ToolError")
+    except (KeyError, ToolError):
+        check("an unknown evidence id errors instead of guessing", "an error with the reason",
+              "an error with the reason")
     check("a refusal is recorded as evidence too",
           analytics.ledger.latest(gap_refused["evidence_id"]) is not None, True)
 

@@ -625,3 +625,14 @@ found four real bugs no check had exercised. All fixed and in:
 
 `make check` 101/101, `make eval` 15/15, `make validate` 13/13, plus the 12-combination persona x
 dataset x `by` matrix and a 20-call repro sweep — clean.
+
+**Addendum (same round, later):** more fixes off the same battery + Adnan's round-8 handoff. `search_logs`
+was quoting 400 chars where rule 8 and `analytics.TEXT_CHARS` say 300 — now one shared `TEXT_CHARS = 300`
+in tools.py that both use. The live endpoint answers with plain JSON instead of per-request SSE streams
+(`json_response`; `EXHIBIT_MCP_JSON_RESPONSE=0` disables) after Adnan's 1-in-6 `list_tools` stream-drop
+under the funnel — 10/10 clean funnel sessions after. And two crash paths from the battery's tail:
+`episodes` divided by zero when no incidents matched the filters (now a note saying exactly that), and
+`verify_evidence` on an id that was never issued raised a bare `KeyError` (now a `ToolError` carrying the
+reason; the acceptance check asserts the error). Final battery through a real MCP client: pass 1 = 13
+engine crashes across 29 questions, pass 2 = **0**; spot-checked numbers all resolve to the ledger.
+`make check` 101/101, `make eval` 15/15, `make validate` 13/13.
