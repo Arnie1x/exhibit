@@ -39,13 +39,13 @@ from .datasets import (
     episodes_of,
     rank_of,
 )
-from .tools import _agg, _asked, _as_dt, _envelope, _filters, _jsonable, _refuse, _scope
+from .tools import (TEXT_CHARS, _agg, _asked, _as_dt, _envelope, _filters, _jsonable,
+                    _refuse, _scope)
 
 MAX_ROWS = 200           # rule 9: hard cap on returned rows
 DEFAULT_ROWS = 20        # rule 9: default page size
 MAX_BUCKETS = 400        # rule 9: hard cap on buckets in one trend
 MAX_FACETS = 10          # rule 9: hard cap on facet values
-TEXT_CHARS = 300         # rule 8: log text is quoted, not dumped
 
 
 def _clamp(n: Any, default: int = DEFAULT_ROWS, hard: int = MAX_ROWS) -> int:
@@ -233,13 +233,23 @@ ORDER BY lines DESC, started, {part_sql}"""
 def _episodes_stored(p, key: str, src, name: str, limit: int, scope: dict,
                      since, until, team, signature: str | None = None) -> dict:
     """The lead's and manager's episode counts: already grouped, at the gap that relation states."""
+    if (since or until) and not src.time_column:
+        # mgr_*_risk carries first_seen, but its incident counts are per-problem all-time totals --
+        # a window cannot narrow them, and filtering by first_seen would silently answer a
+        # different question ("problems first seen in this window") than the one asked.
+        return _refused(
+            "episodes", key, p,
+            f"incidents here are precomputed per problem across the whole corpus ({src.relation} "
+            f"carries no incident-start column), so since/until cannot narrow the count -- it is "
+            f"all-time. Ask the engineer (or the lead, whose relation carries `started`) for a "
+            f"windowed incident count.", scope)
     params: list[Any] = []
     clauses: list[str] = []
     if (since_dt := _as_dt(since)) is not None and src.time_column:
-        clauses.append(f"{src.time_column} >= %s")
+        clauses.append(f"{src.time_column} >= %s::timestamp")
         params.append(since_dt)
     if (until_dt := _as_dt(until)) is not None and src.time_column:
-        clauses.append(f"{src.time_column} < %s")
+        clauses.append(f"{src.time_column} < %s::timestamp")
         params.append(until_dt)
     if team:
         clauses.append("team = %s")
@@ -344,7 +354,8 @@ def top_signatures(
 
     params: list[Any] = []
     clauses = [spec.filter_sql] if spec.filter_sql else []
-    clauses += _filters(view, params, since=since, until=until, level=level, team=team)
+    clauses += _filters(view, params, since=since, until=until, level=level, team=team,
+                        time_column=spec.time_column or None)
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
 
     if spec.episodes and "(" in (spec.episodes or ""):
@@ -446,7 +457,7 @@ def trend(
     if days is not None:
         last = db.scalar(f"SELECT max({tc}) FROM {view.relation}", role=p.role)
         if last is not None:
-            clauses.append(f"{tc} >= %s - INTERVAL '1 day' * %s")
+            clauses.append(f"{tc} >= %s::timestamp - INTERVAL '1 day' * %s")
             params.extend([last, _clamp(days, default=7, hard=3650)])
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
 
@@ -663,7 +674,8 @@ def nearby_events(
         anchor = _as_dt(ts)
 
     params.extend([anchor, window, anchor, window])
-    where = (f"{tc} >= %s - INTERVAL '1 minute' * %s AND {tc} <= %s + INTERVAL '1 minute' * %s")
+    where = (f"{tc} >= %s::timestamp - INTERVAL '1 minute' * %s AND "
+             f"{tc} <= %s::timestamp + INTERVAL '1 minute' * %s")
     cols = [c for c in INDEX_COLUMNS.get(key, ()) if c] or [idc, tc, view.level_column, "team"]
     sel = ", ".join(dict.fromkeys(cols))
     sql = (f"SELECT {sel}, left({view.search_column}, {TEXT_CHARS}) AS content FROM {source}"
@@ -736,13 +748,13 @@ def what_changed(
     sql = f"""WITH foreground AS (
     SELECT {spec.key} AS dimension, {spec.measure} AS n
     FROM {spec.relation}
-    WHERE {spec.time_column} >= %s - INTERVAL '1 {unit}' * %s AND {spec.time_column} < %s{filt}
+    WHERE {spec.time_column} >= %s::timestamp - INTERVAL '1 {unit}' * %s AND {spec.time_column} < %s::timestamp{filt}
     GROUP BY 1
 ),
 baseline AS (
     SELECT {spec.key} AS dimension, {spec.measure} AS n
     FROM {spec.relation}
-    WHERE {spec.time_column} >= %s - INTERVAL '1 {unit}' * %s AND {spec.time_column} < %s - INTERVAL '1 {unit}' * %s{filt}
+    WHERE {spec.time_column} >= %s::timestamp - INTERVAL '1 {unit}' * %s AND {spec.time_column} < %s::timestamp - INTERVAL '1 {unit}' * %s{filt}
     GROUP BY 1
 )
 SELECT coalesce(foreground.dimension, baseline.dimension) AS dimension,

@@ -22,8 +22,10 @@ from typing import Any
 from mcp.server.mcpserver.exceptions import ToolError
 
 from . import db, ledger
-from .datasets import Persona, PersonaView, persona as persona_meta
+from .datasets import INDEX_COLUMNS, INDEX_GROUP, Persona, PersonaView, persona as persona_meta
 from .envelope import Envelope
+
+TEXT_CHARS = 300        # rule 8: log text is quoted, not dumped -- one constant, both tools
 
 MODES = {
     "term": ("%s", "term match (@@)"),
@@ -62,13 +64,20 @@ def _predicate(view: PersonaView, query: str, mode: str, params: list) -> tuple[
     return f"{view.search_column} @@ {fragment}", label
 
 
-def _filters(view: PersonaView, params: list, *, since=None, until=None, level=None, team=None) -> list[str]:
+def _filters(view: PersonaView, params: list, *, since=None, until=None, level=None, team=None,
+             time_column: str | None = None) -> list[str]:
+    """Shared WHERE clauses. ``time_column`` overrides the view's own time column for callers that
+    query a *different* relation than the view names (top_signatures on a precomputed relation)."""
+    col = time_column or view.time_column
     clauses: list[str] = []
     if (since_dt := _as_dt(since)) is not None:
-        clauses.append(f"{view.time_column} >= %s")
+        # ::timestamp cast: the engine rejects a datetime object in statements that also carry a
+        # tsquery operator, and db.query streams datetimes as ISO text -- the cast is what tells
+        # the engine how to read the literal.
+        clauses.append(f"{col} >= %s::timestamp")
         params.append(since_dt)
     if (until_dt := _as_dt(until)) is not None:
-        clauses.append(f"{view.time_column} < %s")
+        clauses.append(f"{col} < %s::timestamp")
         params.append(until_dt)
     if level:
         clauses.append(f"{view.level_column} = %s")
@@ -251,7 +260,7 @@ def search_logs(
         + (f", {view.node_column} AS node" if view.node_column else "")
         + f", {view.level_column} AS level, team,"
         f" ts_highlight({view.search_column}, ts_offsets({view.search_column})) AS highlight,"
-        f" left({view.search_column}, 400) AS content"
+        f" left({view.search_column}, {TEXT_CHARS}) AS content"
         f" FROM {view.search} WHERE {' AND '.join(where)}"
         f" ORDER BY {view.time_column} DESC LIMIT %s"
     )
@@ -312,23 +321,43 @@ def count_events(
             f"the index relation). Bucket {view.relation} by its own columns instead.", scope,
         )
 
-    group_by = (group_by or view.default_group
-                or (view.group_names[0] if view.group_names else "")).strip()
+    key = dataset.strip().lower()
+    # With a full-text query the search runs on the index relation, which carries a narrower
+    # column set than the view's own relation (bgl_idx has no `signature`; os_idx has no
+    # `problem`). Default the bucket to one the index actually carries, and refuse -- not
+    # crash -- if the caller explicitly asks for one that lives only on the view's relation.
+    default = view.default_group or (view.group_names[0] if view.group_names else "")
+    if query and view.search:
+        idx_default = INDEX_GROUP.get(key)
+        default = next((g for g, col in view.groups.items() if col == idx_default), default)
+    group_by = (group_by or default).strip()
     try:
         bucket = view.group_column(group_by)
     except KeyError as exc:
         # An unknown bucket is a refusal, not a crash: same shape as a bad `by` on
         # top_signatures, and the message already lists what this view can bucket by.
         return _refuse("count_events", dataset, p, str(exc), scope)
+    idx_cols = INDEX_COLUMNS.get(key, ()) if (query and view.search) else ()
+    if idx_cols and bucket not in idx_cols:
+        return _refuse(
+            "count_events", dataset, p,
+            f"a full-text query runs on {view.search}, which carries {', '.join(idx_cols)}; "
+            f"{bucket!r} lives on {view.relation}. Bucket by one of the index columns instead, "
+            f"or drop the query to bucket by {group_by!r}.",
+            scope,
+        )
     limit = max(1, min(int(limit), 200))
 
+    # Clause order must match param order in both statements below: the predicate first (it owns
+    # params[0]), then the shared filters -- swapped, ts_phrase() receives a timestamp instead.
     params: list[Any] = []
-    clauses = _filters(view, params, since=since, until=until, level=level, team=team)
     source, operator = view.relation, "plain aggregation (no full-text operator)"
+    clauses: list[str] = []
     if query:
         pred, operator = _predicate(view, query, mode, params)
-        clauses.insert(0, pred)
+        clauses.append(pred)
         source = view.search or view.relation
+    clauses += _filters(view, params, since=since, until=until, level=level, team=team)
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     agg = _agg(view)
 

@@ -376,6 +376,9 @@ class SignatureRank:
     nodes: str = ""                      # blast radius
     filter_sql: str = ""
     fixed_gap: int | None = None
+    time_column: str = ""          # precomputed relations only: what `since`/`until` filter on --
+                                   # the persona's VIEW can name a different relation (lead_bgl_daily
+                                   # vs bgl_incident), whose time column does not exist on this one
     note: str = ""
     node_label: str = "nodes"      # what the blast-radius column actually counts in this relation
     nodes_unmeasurable: str = ""   # set when the corpus cannot support a blast-radius ranking at all
@@ -461,12 +464,14 @@ RANK: dict[tuple[str, str], SignatureRank] = {
     ("lead", "bgl"): SignatureRank(
         relation="bgl_incident", key="signature", grain=("signature",), extra=("team", "component"),
         lines="sum(lines)", episodes="count(*)", nodes="max(nodes)", fixed_gap=5,
+        time_column="started",
         note="lines summed across incidents, episodes counted, nodes as the PEAK blast radius -- "
              "never summed, they are distinct per incident",
     ),
     ("lead", "openstack"): SignatureRank(
         relation="os_incident", key="problem", grain=("problem",), extra=("team", "service"),
         lines="sum(lines)", episodes="count(*)", nodes="max(instances)", fixed_gap=5,
+        time_column="started",
         note="nodes = peak instances per incident",
         nodes_unmeasurable=(
             "os_incident carries 0 instances for all 68 incidents: the corpus's error lines never "
@@ -478,13 +483,14 @@ RANK: dict[tuple[str, str], SignatureRank] = {
         relation="mgr_bgl_risk", key="signature_id",
         grain=("signature_id", "component", "team"), extra=("alert_category",),
         lines="sum(alert_lines)", episodes="sum(episodes_5min)", nodes="max(nodes_affected)",
-        fixed_gap=5,
+        fixed_gap=5, time_column="first_seen",
         note="a problem is named by signature_id + component + team; no log text",
     ),
     ("manager", "openstack"): SignatureRank(
         relation="mgr_os_risk", key="problem", grain=("problem",), extra=("team", "service"),
         lines="sum(lines)", episodes="sum(incidents_5min)", nodes="max(requests_affected)",
-        fixed_gap=5, note="one row per problem, above INFO only; the blast-radius column counts "
+        fixed_gap=5, time_column="first_seen",
+        note="one row per problem, above INFO only; the blast-radius column counts "
 "requests affected, not machines -- the corpus's error lines name no instance",
         node_label="requests_affected",
     ),
