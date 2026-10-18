@@ -527,6 +527,13 @@ a judge (or you) can point an MCP client at it without cloning anything:
   unchanged). README §"Live demo endpoint"; `.mcp.json` carries an `exhibit-demo` entry so a
   client that reads the repo gets the remote one with zero setup.
 
+**Update (Sun 15:00):** Funnel is enabled and the endpoint is **live and verified from the public
+internet** — four independent nodes (check-host.net: AT/DE/PL/PT) reach it, and a full MCP handshake
+through the public URL (initialize → 12 tools → a real call with an evidence id) works.
+One fix on the way (PR #8): the MCP SDK's localhost guard was returning 421 for the public
+hostname; the server now keeps the guard but allows the endpoint's own names. Unknown Host headers
+still get 421.
+
 **What is genuinely left for the submission:** (1) **the deck** — export it (PDF/PPTX) and
 commit it (yours; the artifact is in your account); (2) **the video** — record it against
 `docs/video-script.md`; (3) **stage 8** — flip the repo public and upload (§15). Nothing else is
