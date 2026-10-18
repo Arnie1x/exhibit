@@ -1,4 +1,4 @@
-"""MCP server exposing the tools over stdio.
+"""MCP server exposing the tools over stdio (default) or streamable HTTP (the demo endpoint).
 
 Run it:  uv run exhibit-mcp        (or: make mcp)
 Point a client at it: any MCP client speaking stdio. `scripts/stage2_mcp_client.py` is a
@@ -14,6 +14,7 @@ Note for MCP 2.x: the class is MCPServer (FastMCP was renamed). ``mcp`` 1.x used
 from __future__ import annotations
 
 import json
+import os
 
 from mcp.server.mcpserver import MCPServer
 
@@ -293,7 +294,28 @@ def lint_answer(answer: str, persona: str | None = None, deep: bool = False) -> 
 
 
 def main() -> None:
-    mcp.run(transport="stdio")
+    """stdio by default; set EXHIBIT_MCP_TRANSPORT=streamable-http to serve HTTP instead.
+
+    The HTTP mode is what the live demo endpoint runs: HOST/PORT/PATH come from
+    EXHIBIT_MCP_HOST / EXHIBIT_MCP_PORT / EXHIBIT_MCP_PATH (127.0.0.1 / 8900 / /mcp), and
+    stateless requests are the default because the endpoint sits behind a proxy that does not
+    promise sticky sessions.
+    """
+    transport = os.environ.get("EXHIBIT_MCP_TRANSPORT", "stdio").strip().lower() or "stdio"
+    if transport == "stdio":
+        mcp.run(transport="stdio")
+        return
+    if transport != "streamable-http":
+        raise SystemExit(
+            f"EXHIBIT_MCP_TRANSPORT={transport!r} is not a transport: use 'stdio' or 'streamable-http'"
+        )
+    mcp.run(
+        transport="streamable-http",
+        host=os.environ.get("EXHIBIT_MCP_HOST", "127.0.0.1"),
+        port=int(os.environ.get("EXHIBIT_MCP_PORT", "8900")),
+        streamable_http_path=os.environ.get("EXHIBIT_MCP_PATH", "/mcp"),
+        stateless_http=os.environ.get("EXHIBIT_MCP_STATELESS", "1") not in ("0", "false", "no"),
+    )
 
 
 if __name__ == "__main__":

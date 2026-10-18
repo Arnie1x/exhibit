@@ -4,6 +4,10 @@
       "command": "uv",
       "args": ["run", "exhibit-mcp"]
     },
+    "exhibit-demo": {
+      "type": "http",
+      "url": "https://hermes.bushbaby-platy.ts.net:10000/mcp"
+    },
     "serenedb-docs": {
       "type": "http",
       "url": "https://api.serenedb.com/mcp"
