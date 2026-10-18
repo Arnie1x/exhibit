@@ -328,6 +328,10 @@ def main() -> None:
         port=int(os.environ.get("EXHIBIT_MCP_PORT", "8900")),
         streamable_http_path=os.environ.get("EXHIBIT_MCP_PATH", "/mcp"),
         stateless_http=os.environ.get("EXHIBIT_MCP_STATELESS", "1") not in ("0", "false", "no"),
+        # Responses as plain JSON rather than per-request SSE streams: under the funnel one
+        # session in six dropped with "SSE stream ended without a response" (reported 18 Oct), and
+        # the JSON path has no stream to drop. Spec-following clients accept both content types.
+        json_response=os.environ.get("EXHIBIT_MCP_JSON_RESPONSE", "1") not in ("0", "false", "no"),
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
             allowed_hosts=allowed_hosts,
