@@ -168,7 +168,9 @@ def episodes(
     "Rank problems with lines, incidents and blast radius side by side, ordered by `by` "
     "(episodes | lines | nodes). The point of the tool is that the three criteria disagree: this "
     "corpus ranked by lines is a fleet-wide log flood, ranked by blast radius it is a six-hour "
-    "one-machine meltdown. Blast radius is always a peak, never a sum."))
+    "one-machine meltdown. Blast radius is always a peak, never a sum. Where a relation's error "
+    "lines name no instance (OpenStack), the blast-radius column counts requests affected -- "
+    "`by='nodes'` still orders by it, and the result's column name and notes say so."))
 def top_signatures(
     dataset: str,
     persona: str | None = None,

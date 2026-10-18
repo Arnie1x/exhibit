@@ -572,6 +572,13 @@ sees the field-level message and retries, which is exactly what happened.
 
 `make check` 101/101, `make eval` 15/15, `make validate` 13/13 all still hold after the fixes.
 
+**Follow-up (same afternoon):** a retry of "rank OpenStack by blast radius as the manager" showed the
+model *reasoning around* the fixed path instead of calling it — the relation's column really is
+named `requests_affected`, and nothing said that `by='nodes'` is how you address it. So: a
+`by='requests_affected'` refusal now answers "…this relation's blast-radius column is
+requests_affected, and `by='nodes'` is how you order by it", and the tool description says the same
+up front. Verified on the live endpoint: the fixed call returns 5 rows (top: power-state sync, 45/45),
+and the pointer refusal carries the right sentence.
 
 ## Handoff to Arnie, round 8 — deck v2, the script, and two small findings (Adnan, Sun 18 Oct)
 
@@ -587,6 +594,6 @@ gained L4b (the weekly bars on slide 10), and the rest of `make demo` prints exa
   one died at `list_tools` with `SSE stream ended without a response` (the other five returned the
   same evidence ids as a local run). Possibly the funnel or the stateless mode dropping a stream;
   the script tells the recorder to retake if it happens on camera.
-- `src/exhibit/tools.py:244` — `search_logs` returns `left(content, 400)`, while CLAUDE.md rule 8
+- `src/exhibit/tools.py:254` — `search_logs` returns `left(<search column>, 400)`, while CLAUDE.md rule 8
   and `analytics.TEXT_CHARS` say 300. Slide 6 says "log text quoted, never dumped", which holds
   either way; one number would make the rule and the code agree.
