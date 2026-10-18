@@ -569,3 +569,32 @@ requests_affected, and `by='nodes'` is how you order by it", and the tool descri
 up front. Verified on the live endpoint: the fixed call returns 5 rows (top: power-state sync, 45/45),
 and the pointer refusal carries the right sentence.
 
+
+
+## Round 9 — judge-style battery findings (Sun, before submission)
+
+A 29-question judge simulation run through a real MCP client (OpenCode on the box, a fresh session per
+question: engineer/lead/manager phrasings, informal wording, traps, refusals, adversarial params)
+found four real bugs no check had exercised. All fixed and in:
+
+1. **`count_events` with a query mis-ordered its SQL params** — the predicate clause moved to the front
+   of the WHERE list but its parameter stayed last, so `query` + any filter fed `ts_phrase()` a
+   timestamp (`UndefinedFunction: ts_phrase(TIMESTAMP)`) or silently searched for the filter's value.
+   Clause and parameter order now match; verified TLB x team/since/until.
+2. **`count_events` with a query buckets on the index relation**, which carries a narrower column set
+   (`bgl_idx` has no `signature`) — that crashed. Now a refusal naming the index's columns ("drop the
+   query to bucket by signature"), and with no explicit bucket it defaults to the index's own
+   (`alert_category` / `logger`).
+3. **Two engine binding quirks**: a Python datetime in a statement that also uses a tsquery operator
+   (`InvalidParameterValue: Invalid unicode…`), and a string meeting interval arithmetic (phrased as a
+   bogus `InFailedSqlTransaction`). Datetimes now travel as ISO text and every datetime placeholder
+   carries an explicit `::timestamp` cast (tools._filters; analytics: _episodes_stored, nearby_events,
+   trend `days=`, what_changed). A new datetime bind site needs the cast too.
+4. **`top_signatures` on precomputed relations filtered on the wrong relation's time column** —
+   `lead_bgl_daily.day` while querying `bgl_incident` (which has `started`). `SignatureRank` gained
+   `time_column`; `_filters` takes an override. Also: the manager's stored episodes are per-problem
+   all-time counts, so `since`/`until` on them now refuses with the reason instead of being silently
+   dropped; and `db.query` retries once on the engine's bogus aborted-transaction phrasing.
+
+`make check` 101/101, `make eval` 15/15, `make validate` 13/13, plus the 12-combination persona x
+dataset x `by` matrix and a 20-call repro sweep — clean.

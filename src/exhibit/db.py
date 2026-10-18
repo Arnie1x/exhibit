@@ -10,9 +10,11 @@ from __future__ import annotations
 import os
 import threading
 from contextlib import contextmanager
+from datetime import date, datetime
 from typing import Any, Sequence
 
 import psycopg
+from mcp.server.mcpserver.exceptions import ToolError
 from psycopg.rows import dict_row
 
 HOST = os.getenv("SERENEDB_HOST", "127.0.0.1")
@@ -91,6 +93,26 @@ class QueryTimeout(RuntimeError):
     """The client-side deadline fired."""
 
 
+def _bindable(value: Any) -> Any:
+    """A value the engine accepts as a plain text parameter.
+
+    SereneDB rejects a Python ``datetime`` object in a statement that also carries a tsquery
+    operator (``InvalidParameterValue: Invalid unicode (byte sequence mismatch)``), and phrases
+    a string literal meeting interval arithmetic as a bogus "current transaction is aborted".
+    Datetimes therefore travel as ISO text AND every datetime placeholder carries an explicit
+    ``::timestamp`` cast -- tools._filters, analytics._episodes_stored, analytics.nearby_events,
+    analytics.trend (days=), analytics.what_changed. A new datetime bind site needs the cast too,
+    or the statement fails this engine's way.
+    """
+    if isinstance(value, datetime):
+        return value.isoformat(sep=" ")
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, list):
+        return [_bindable(v) for v in value]
+    return value
+
+
 def query(
     sql: str,
     params: Sequence[Any] | None = None,
@@ -102,8 +124,29 @@ def query(
     `SET statement_timeout` is accepted and NOT enforced by this engine (probed 17 Oct), so the
     deadline has to live here: a timer cancels the running statement and we raise QueryTimeout
     rather than letting a bad query hang a demo.
+
+    One retry on ``InFailedSqlTransaction``: this engine phrases some statement-level failures as
+    "current transaction is aborted" (probed: a string literal in interval arithmetic), and a
+    genuinely transient aborted session recovers on a fresh connection. Everything here is
+    read-only, so retrying once is safe; a real error fails identically and still surfaces.
     """
     budget = TIMEOUT_S if timeout is None else timeout
+    if params:
+        params = [_bindable(p) for p in params]
+    try:
+        return _query_once(sql, params, role, budget)
+    except psycopg.errors.InFailedSqlTransaction:
+        try:
+            return _query_once(sql, params, role, budget)
+        except psycopg.errors.InFailedSqlTransaction as exc:
+            raise ToolError(
+                "the engine left a session in an aborted state and the retry hit another; "
+                "try the call once more"
+            ) from exc
+
+
+def _query_once(sql: str, params: Sequence[Any] | None, role: str | None,
+                budget: float) -> list[dict]:
     with connect(role=role) as conn:
         timer = None
         if budget and budget > 0:
@@ -117,6 +160,11 @@ def query(
             raise QueryTimeout(
                 f"query exceeded {budget:g}s and was cancelled client-side "
                 f"(the engine does not enforce statement_timeout)"
+            ) from exc
+        except psycopg.errors.InvalidParameterValue as exc:
+            raise ToolError(
+                f"the engine rejected a literal in this statement ({exc}); "
+                "retry with plainer terms (plain ASCII text)"
             ) from exc
         finally:
             if timer is not None:
