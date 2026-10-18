@@ -120,6 +120,29 @@ SELECT left(signature, 64) AS signature, count(*) AS weeks, count(*) FILTER (WHE
 FROM per_week
 GROUP BY signature_id, signature
 ORDER BY incidents DESC, signature_id;
+
+\echo '=== L4b the weekly bars behind the slide 10 chart: top 2 by episodes, active weeks only ==='
+\echo '    week_no counts from the first week of the corpus (0 = 2005-05-30); 32 weeks in all'
+WITH top AS (
+    SELECT signature_id, signature FROM bgl_signature_stats
+    ORDER BY episodes_5min DESC, signature_id LIMIT 2
+), weeks AS (
+    SELECT w, row_number() OVER (ORDER BY w) - 1 AS wk
+    FROM generate_series((SELECT date_trunc('week', min(started)) FROM bgl_incident),
+                         (SELECT date_trunc('week', max(started)) FROM bgl_incident),
+                         INTERVAL '7 days') g(w)
+), per_week AS (
+    SELECT t.signature_id, t.signature, k.w, k.wk, count(i.signature_id) AS incidents
+    FROM top t
+    CROSS JOIN weeks k
+    LEFT JOIN bgl_incident i
+           ON i.signature_id = t.signature_id AND date_trunc('week', i.started) = k.w
+    GROUP BY t.signature_id, t.signature, k.w, k.wk
+)
+SELECT left(signature, 40) AS signature, wk AS week_no, w::date AS week_of, incidents
+FROM per_week
+WHERE incidents > 0
+ORDER BY signature_id, wk;
 RESET ROLE;
 
 \echo ''
