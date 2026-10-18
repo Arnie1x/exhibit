@@ -56,7 +56,12 @@ Three conventions hold throughout:
 |---|---|---|---|---|
 | BGL | 4,747,963 | 348,460 | 2005-06-03 15:42:50.363779 | 2006-01-04 08:00:05.233639 |
 
-214 days. "Alert lines" means the lines above `INFO`. The corpus is the full Loghub BGL log, parsed
+214 days. **"Alert lines" means the lines whose BGL label column carries a real category** — the
+derived flag `is_alert`, that is `alert_category <> '-'`. It is 348,460 of the 4,747,963 lines;
+4,399,503 carry the `-` label and are not alerts. This is deliberately **not** the same thing as
+"above INFO", which is 1,012,140 lines — a team filtering on severity alone would report three times
+the alert count. OpenStack has no label column, so there "problems above INFO" is used instead, and
+the two datasets are never summed. The corpus is the full Loghub BGL log, parsed
 to Parquet by `scripts/parse.py` and loaded into `bgl_ev` with an inverted index over the message
 text (`bgl_idx`). Filters used below: none unless a block states one; the only time filter in W1 is
 the pair of calendar-day windows in E3, which is stated.
