@@ -17,6 +17,7 @@ import json
 import os
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 
 from . import analytics, lint, tools
 
@@ -309,12 +310,31 @@ def main() -> None:
         raise SystemExit(
             f"EXHIBIT_MCP_TRANSPORT={transport!r} is not a transport: use 'stdio' or 'streamable-http'"
         )
+    # The SDK auto-enables DNS-rebinding protection for localhost, which 421s any request that
+    # carries the public hostname (through the funnel, requests arrive as
+    # hermes.bushbaby-platy.ts.net:10000). Keep the protection on; allow the names this server is
+    # actually reached by. Override with EXHIBIT_MCP_ALLOWED_HOSTS (comma-separated).
+    names = os.environ.get(
+        "EXHIBIT_MCP_ALLOWED_HOSTS", "hermes.bushbaby-platy.ts.net,127.0.0.1,localhost"
+    ).split(",")
+    allowed_hosts: list[str] = []
+    for name in (n.strip() for n in names if n.strip()):
+        allowed_hosts += [name, f"{name}:*"]
     mcp.run(
         transport="streamable-http",
         host=os.environ.get("EXHIBIT_MCP_HOST", "127.0.0.1"),
         port=int(os.environ.get("EXHIBIT_MCP_PORT", "8900")),
         streamable_http_path=os.environ.get("EXHIBIT_MCP_PATH", "/mcp"),
         stateless_http=os.environ.get("EXHIBIT_MCP_STATELESS", "1") not in ("0", "false", "no"),
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=allowed_hosts,
+            allowed_origins=[
+                "https://hermes.bushbaby-platy.ts.net:10000",
+                "http://127.0.0.1:*",
+                "http://localhost:*",
+            ],
+        ),
     )
 
 
