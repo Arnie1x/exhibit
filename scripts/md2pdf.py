@@ -2,11 +2,11 @@
 """Minimal, dependency-free Markdown -> print-ready HTML -> PDF.
 
 Written because this box has no pandoc and PEP 668 blocks a plain pip install. Handles
-exactly the subset PLAN.md uses: ATX headings, GFM pipe tables, fenced code, blockquotes,
+exactly the subset docs/process/PLAN.md uses: ATX headings, GFM pipe tables, fenced code, blockquotes,
 bullet/ordered lists (one level of nesting), rules, bold/italic/inline-code, links, task
 boxes. Anything else passes through as text, which is the safe failure.
 
-    python3 scripts/md2pdf.py PLAN.md PLAN.pdf
+    python3 scripts/md2pdf.py docs/process/PLAN.md PLAN.pdf
 """
 from __future__ import annotations
 

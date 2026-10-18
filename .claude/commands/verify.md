@@ -3,7 +3,7 @@ description: Re-derive every number in an answer, investigation, doc or slide wi
 argument-hint: <path to a Markdown file or folder> | plan | last
 ---
 
-Target: $ARGUMENTS (`plan` means the numbers in the team `PLAN.md`; `last` means the newest folder under `investigations/`)
+Target: $ARGUMENTS (`plan` means the numbers in the team `docs/process/PLAN.md`; `last` means the newest folder under `investigations/`)
 
 Delegate to the `sql-verifier` subagent with this brief:
 

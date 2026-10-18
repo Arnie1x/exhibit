@@ -41,7 +41,7 @@ What that means in practice, and what it does not:
 * the assistants' output was reviewed and verified by the other team member: Person A's figures were
   recomputed independently (76 of 76 checks, without using those views) and Person B's tools were run
   against Person A's numbers through the real MCP surface;
-* the agents did **not** write the analysis claims: the findings in `PLAN.md` §9 and the demo come
+* the agents did **not** write the analysis claims: the findings in `docs/process/PLAN.md` §9 and the demo come
   from measured queries, and the two claims that did not survive measurement are recorded in
   `docs/data-notes.md` and the commit history rather than quietly dropped;
 * no model runs inside the submitted system. The MCP server is deterministic Python over SereneDB;
@@ -67,4 +67,4 @@ its "five severity levels" (we measure six, no `Kill` in the derived set). **Bot
 the challenge owners at the Q&A (17 Oct); their answer was that the data is authoritative — we use
 the full measured sets, with no mapping.** One figure of ours was wrong on the way here: an earlier
 "39% of alert lines" for the one-node burst; the measured share is **44%** (152,183 of 348,460
-alert lines), and that is the version `PLAN.md` carries.
+alert lines), and that is the version `docs/process/PLAN.md` carries.

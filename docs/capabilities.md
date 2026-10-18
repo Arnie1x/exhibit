@@ -217,7 +217,7 @@ curiosity:
 | Does `date_trunc` need a cast? | **No** on our `TIMESTAMP` columns (`date_trunc('day', ts)` returns 2005-06-11 00:00:00 for the burst day). The `::timestamptz` cast is only for nanosecond timestamps and for `'week'` |
 | Does `FULL OUTER JOIN` work? | **Yes** — the foreground/baseline join in `what_changed` depends on it |
 | `round(x, 2)`, `nullif`, `coalesce`, `count(DISTINCT …)`? | All work; used in the rate-ratio and blast-radius expressions |
-| Can `ts_dict_agg` give significant terms? | **Not usefully.** `ts_dict_agg(content)` returns **per-term identifier arrays**: one call over ~21,000 matching lines returned roughly **4.8 MB** of output. `ts_dict_count` takes exactly one argument (`col0 ANY`) and returns `INTEGER[]`, so it cannot be paired with terms. Neither yields a bounded term→count map. `what_changed` therefore measures change at **signature** level — see `PLAN.md` §7 |
+| Can `ts_dict_agg` give significant terms? | **Not usefully.** `ts_dict_agg(content)` returns **per-term identifier arrays**: one call over ~21,000 matching lines returned roughly **4.8 MB** of output. `ts_dict_count` takes exactly one argument (`col0 ANY`) and returns `INTEGER[]`, so it cannot be paired with terms. Neither yields a bounded term→count map. `what_changed` therefore measures change at **signature** level — see `docs/process/PLAN.md` §7 |
 | Does a statement with no result set break the driver? | **Yes** — `fetchall()` on an `INSERT` raises *"the last operation didn't produce a result"*, and a broad `except` in the ledger swallowed it into a note: the evidence ledger silently recorded **nothing** until this was found by an acceptance check. Writes go through `db.execute`, and the checks now assert that a ledger row exists |
 | Is the result order stable? | **No** for ties. `ORDER BY lines DESC` over 19,250 incidents — thousands of them one line long — can come back in a different sequence between runs, which made the ledger's hash report a false MISMATCH. The hash is now **order-independent** (rows are sorted before hashing); order is presentation, content is the claim |
 | Is an index relation's column set the base table's? | **No.** `bgl_idx` = `id, ts, alert_category, is_alert, node, node_kind, rack, midplane, nodecard, component, level, level_rank, template_id, team, content` — **no `signature`** (that lives on `bgl_sig`); `os_idx` has no `problem`. A tool that walks lines through the index must name columns the *index* has |
@@ -320,7 +320,7 @@ works with a host client and with `PSQL='docker exec -i serenedb psql …'` alik
 
 ## 9. The answer lints, and the eval that scores them
 
-The plan promised two rules in prose (`docs/build-plan.md` §6): a manager answer may not claim money,
+The plan promised two rules in prose (`docs/process/build-plan.md` §6): a manager answer may not claim money,
 downtime, customers, revenue or an SLA, and every figure in an answer must cite evidence that
 resolves. Prose is a promise; `src/exhibit/lint.py` is the rule, and `make eval` is the score.
 

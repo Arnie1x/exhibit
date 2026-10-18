@@ -24,7 +24,7 @@ below. No figure on a slide comes from the generator.
 | # | Slide | Figures | Printed by |
 | --- | --- | --- | --- |
 | 1 | Exhibit | terminal card: `connected: exhibit 0.3.0`, 12 tools, `E-55EF08` 19,250 incidents, MATCH | `scripts/stage2_mcp_client.py` (`make check`) |
-| 2 | One question, three readers | none (role playbooks) | PLAN.md §7, `sql/50_roles.sql` |
+| 2 | One question, three readers | none (role playbooks) | docs/process/PLAN.md §7, `sql/50_roles.sql` |
 | 3 | Lines are not incidents | 152,183 alert lines from 1 node in 6h22m (2005-06-11), 44% of alert lines; 49,154 lines across 22,529 nodes (2005-06-14); 348,460 → 19,250 (5-min gap, signature × midplane) → 1,377 (signature) | `make smoke` §2, §4, §4b; `tests/golden/headline_numbers.sql` |
 | 4 | One corpus, three rankings | by lines: DTLB 152,734 lines, 117 incidents, 99.64% from one node; by incidents: Lustre 3,667, ciod socket 3,638, at most 8 nodes in one; by blast radius + persistence: rts panic 3,394 nodes, 124 active days, DTLB 12th | `make demo` W1 E1, L2, M2 |
 | 5 | How Exhibit works | 12 tools; SereneDB 26.09.1.3 | `src/exhibit/server.py` (`make check` lists them) |
@@ -38,7 +38,7 @@ below. No figure on a slide comes from the generator.
 | 13 | Every number travels with its query | the `E-55EF08` envelope (`episodes(bgl, engineer, gap_minutes=5)`: total 19,250, returned 1, truncated, DTLB on R30-M0, 152,182 lines, 1 node, 6:21:47.98); `verify_evidence` MATCH, 19,250 rows recorded and now; `make check` 101/101; `make eval` 15/15, 19/19 figures, 6 refusals | `make check` (stock-client script); `make eval` |
 | 14 | Scored against answer keys, outside the agent | 4 labelled at 1 to 4 of 2,069; chance 1 in 761,325,852,001; 99.9998% agreement over 4,747,963 lines; precision 0.999991 (signatures) vs 0.4065 (FATAL/FAILURE); 0 of 100 lines above INFO; latency 0.2340 vs 0.2341 s; 13/13 | `make validate`; `docs/validation.md` |
 | 15 | A billion rows, searched where they sit | 1,000,000,000 rows, 41 GB on S3, 1,624 row groups, footer in about 2 s; 10-second slice: 5,275,597 rows from 10 row groups, built in 60 s, 136 MB on disk; phrase + facet 13 ms, 290,473 hits; 30 s and 60 s slices crash; 16 vCPU, about 6 MiB/s | `make bench`, `make bench-ladder`; `bench/README.md` |
-| 16 | What we do not claim | 23 ownership rows, fictional teams, 100% coverage; brief 12 categories and 5 levels, data 42 and 6, the organisers' ruling; 84,253 ASSERT lines labelled normal | `ownership` tool; `make smoke`; PLAN.md §13; `docs/data-notes.md` |
+| 16 | What we do not claim | 23 ownership rows, fictional teams, 100% coverage; brief 12 categories and 5 levels, data 42 and 6, the organisers' ruling; 84,253 ASSERT lines labelled normal | `ownership` tool; `make smoke`; docs/process/PLAN.md §13; `docs/data-notes.md` |
 | 17 | Run it yourself | about 20 s bootstrap | `make bootstrap` (15.8 s on the Windows box, 18 Oct) |
 
 Two figures depend on the machine and are stated with it: bench times (16 vCPU, about 6 MiB/s to

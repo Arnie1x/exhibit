@@ -329,7 +329,7 @@ def main() -> int:
     check(f"all {len(strict_calls)} sampled answers serialise for a strict client",
           unserialisable or "all serialisable", "all serialisable")
 
-    # The answer lints: promised in the plan (docs/build-plan.md section 6) and, until now, only
+    # The answer lints: promised in the plan (docs/process/build-plan.md section 6) and, until now, only
     # prose. The manager vocabulary rule and the numeric rule are worth very little as prose and a
     # lot as a check, because both are the kind of rule an agent forgets while the demo runs.
     print("\nanswer lints: the manager vocabulary rule and the numeric rule")

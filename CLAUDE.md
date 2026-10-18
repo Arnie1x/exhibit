@@ -8,17 +8,17 @@ Exhibit is role-aware log intelligence on SereneDB for the SchubKI National AI H
 
 | File | Holds |
 | --- | --- |
-| `PLAN.md` (team plan, Arnie) | Schedule (§11), work split and interface contract (§12), Q&A questions (§13), bonus ladder (§14), checklist (§15), agent rules (§16), measured numbers (§4, §8, §17). It wins over everything below. Never overwrite it |
+| `docs/process/PLAN.md` (team plan, Arnie) | Schedule (§11), work split and interface contract (§12), Q&A questions (§13), bonus ladder (§14), checklist (§15), agent rules (§16), measured numbers (§4, §8, §17). It wins over everything below. Never overwrite it |
 | `docs/capabilities.md` | What works on our SereneDB 26.09.1.3, measured |
 | `docs/data-notes.md` | Parser record shapes, row counts and value sets, each with its SQL |
-| `docs/build-plan.md` | Design reference: tool contracts (§5), role playbooks and answer contract (§6), validation (§8), bonus tracks (§9), SQL patterns (§12). Its Section 0 maps it onto the team plan |
-| `PROGRESS.md` | Adnan's lane log: done, decisions, measured numbers, open issues |
+| `docs/process/build-plan.md` | Design reference: tool contracts (§5), role playbooks and answer contract (§6), validation (§8), bonus tracks (§9), SQL patterns (§12). Its Section 0 maps it onto the team plan |
+| `docs/process/PROGRESS.md` | Adnan's lane log: done, decisions, measured numbers, open issues |
 
-When the docs (serenedb.com, the docs MCP) and a measurement on 26.09.1.3 disagree, the measurement wins; record it in `docs/capabilities.md`. When `docs/build-plan.md` names files, Make targets or tools that differ from the repo, the repo wins: never create a parallel file.
+When the docs (serenedb.com, the docs MCP) and a measurement on 26.09.1.3 disagree, the measurement wins; record it in `docs/capabilities.md`. When `docs/process/build-plan.md` names files, Make targets or tools that differ from the repo, the repo wins: never create a parallel file.
 
 ## Adnan's lane (this session)
 
-Probe, derive and index, views (`sql/30_views.sql`: signatures, episodes, incidents, durations), the ownership map, `sql/50_roles.sql`, golden SQL, independent verification of every number in the plan, the huge-data bench and the ground-truth validation. Arnie owns the MCP server, `datasets.py`, the evidence ledger, tool contracts, role prompts, answer lints and packaging: do not edit those files without agreeing with him first; leave him a handoff note in `PROGRESS.md` instead.
+Probe, derive and index, views (`sql/30_views.sql`: signatures, episodes, incidents, durations), the ownership map, `sql/50_roles.sql`, golden SQL, independent verification of every number in the plan, the huge-data bench and the ground-truth validation. Arnie owns the MCP server, `datasets.py`, the evidence ledger, tool contracts, role prompts, answer lints and packaging: do not edit those files without agreeing with him first; leave him a handoff note in `docs/process/PROGRESS.md` instead.
 
 Interface contract (team plan §12): searches always target `*_idx` by name; tools reach columns only through `datasets.py`; our names stand (`bgl_ev`, `os_ev`, `owner_map`, `bgl_idx`, `os_idx`); any number in a doc, slide or video is reproducible with `make smoke` or `make demo`.
 
@@ -35,7 +35,7 @@ Interface contract (team plan §12): searches always target `*_idx` by name; too
 9. **Limits.** 20 rows by default, 200 max; at most 400 buckets and 10 values per facet; responses under about 8k tokens; `statement_timeout` 30 s on tool paths.
 10. **Safety.** No secrets or raw data in git. SereneDB is published on `127.0.0.1` only (trust auth; Docker bypasses ufw); a teammate connects over Tailscale, never the public IP.
 11. **Only the brief's resources.** Data comes from Zenodo record 8196385 through `scripts/parse.py`. The ownership table is ours (fictional, labelled as such in the README). Papers and benchmarks supply hypotheses, never numbers.
-12. **Done means verified.** The stage gate is printed, the work committed with a conventional commit (`feat(views): …`, `fix(data): …`), and `PROGRESS.md` updated.
+12. **Done means verified.** The stage gate is printed, the work committed with a conventional commit (`feat(views): …`, `fix(data): …`), and `docs/process/PROGRESS.md` updated.
 
 ## Stack and commands
 
@@ -81,7 +81,7 @@ Interface contract (team plan §12): searches always target `*_idx` by name; too
 ## Definition of done
 
 - **SQL or view**: idempotent; its key number matches an independent query by `sql-verifier` that uses the same operator; reproducible with `make smoke` or `make demo`; any surprise recorded in `docs/capabilities.md` or `docs/data-notes.md`.
-- **Stage**: the team plan §11 gate is met and printed; tests green; conventional commit; `PROGRESS.md` updated.
+- **Stage**: the team plan §11 gate is met and printed; tests green; conventional commit; `docs/process/PROGRESS.md` updated.
 
 ## Working style
 

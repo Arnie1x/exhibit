@@ -9,7 +9,7 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0
 | 0–1 Probe, data layer | Done by Sat 12:00 | Re-probe, verify headline numbers, port `sql/50_roles.sql`, extend `os_sig` | Done Sat 13:30 on a second machine: gate met (4,747,963 / 207,812; 348,460 → 19,250); burst corrected to 152,183; partial-index row corrected; roles and W2 views in |
 | 2 MCP skeleton | Sat 12:00–14:00 | Golden SQL for the first three tools | |
 | 3 W1/W2 tools | Sat 14:00–17:00 | Views for `top_signatures`, `trend`, `episodes`, `durations`, `ownership` | SQL side done Sat 13:05: 3 views, `sql/90_queries.sql` (`make demo`) prints W1 and W2 per role under `SET ROLE`, every number computed and independently verified; 3 §9 statements wrong, corrections handed to Arnie. Tool side (Arnie) pending |
-| Q&A | Sat 17:00–20:00 | Questions from team plan §13; answers into `PLAN.md` | |
+| Q&A | Sat 17:00–20:00 | Questions from team plan §13; answers into `docs/process/PLAN.md` | |
 | 4 Roles, contract, lints | Sat 20:00–24:00 | Role views and grants | Done early (Arnie's lints, `0c1d9df`); roles were in since item 3 |
 | Sleep | Sun 00:00–08:00 | OTel bench in the background | Bench done Sat evening instead (item 7) |
 | 5 Validation, eval | Sun 08:00–12:00 | Ground-truth validation script | Done Sat 16:25: `scripts/validate_ground_truth.py` (item 6). PLAN §11 called it done earlier, but the script had never been committed |
@@ -160,8 +160,8 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0
 
 ## Decisions
 
-- The team plan governs schedule, split and stage numbers; `docs/build-plan.md` is the design reference.
-- To settle with Arnie: manager answers name affected components and owning teams (the brief asks for them), never raw log text. PLAN.md §7 already reads this way ("affected component family and owning team", never node IDs or logger names); the role views follow it.
+- The team plan governs schedule, split and stage numbers; `docs/process/build-plan.md` is the design reference.
+- To settle with Arnie: manager answers name affected components and owning teams (the brief asks for them), never raw log text. docs/process/PLAN.md §7 already reads this way ("affected component family and owning team", never node IDs or logger names); the role views follow it.
 - The probe creates objects only in `exhibit_probe`, never in `postgres` or `exhibit_scratch` (left for hand tests and `serenedb-expert`).
 - Stage 3 ranking definitions (in `bgl_signature_stats`, used by `make demo`): blast radius = distinct nodes affected; persistence = distinct active days; both as dense ranks over the 100 alert signatures; the manager order is `rank_blast_radius + rank_persistence`, ties by blast radius then `signature_id`. It ranks measured factors and is labelled "not an impact estimate". Arnie's `rank_by` may choose differently; then the demo changes with it.
 - Every ranking breaks ties on `signature_id` (or `instance_id`), so a rerun gives the same rows and the evidence hash holds.
@@ -197,9 +197,9 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0
 
 ## Handoffs to Arnie
 
-- **Workspace indexes are back on the table (your optional `create_index` / `drop_index`).** On pattern B a partial inverted index restricts when named: `CREATE INDEX <name> ON bgl_ev USING inverted (id, content log_text, ts, …) WHERE <predicate>`, then `VACUUM (REFRESH_TABLE) bgl_ev`, then `FROM <name> WHERE content @@ …` returns only rows matching the predicate. The win is build time (about a fifth for a 9% window), not query time (about 0.4 ms). `sdb_indexes()` does not show the predicate, so the tool must record it. PLAN.md §14 item 4 and §16 still say "no effect"; yours to update. Details: `docs/capabilities.md` §3.
+- **Workspace indexes are back on the table (your optional `create_index` / `drop_index`).** On pattern B a partial inverted index restricts when named: `CREATE INDEX <name> ON bgl_ev USING inverted (id, content log_text, ts, …) WHERE <predicate>`, then `VACUUM (REFRESH_TABLE) bgl_ev`, then `FROM <name> WHERE content @@ …` returns only rows matching the predicate. The win is build time (about a fifth for a 9% window), not query time (about 0.4 ms). `sdb_indexes()` does not show the predicate, so the tool must record it. docs/process/PLAN.md §14 item 4 and §16 still say "no effect"; yours to update. Details: `docs/capabilities.md` §3.
 - `make probe` works again (`PSQL=… DATA=…` pass through); no change to your code.
-- ✔ Done by Arnie (`bba98b3`). **The one-node burst number in PLAN.md is wrong: 152,183, not 136,209** (verified twice, `tests/golden/headline_numbers.sql`). PLAN.md is yours, so I have not touched it. Lines to change: 124 (table row: "2005-06-11 17:17 → 23:39 | 152,183 | 1"), 127 ("39%" → "44% of all alert lines … in under six and a half hours"), 308 (W1 engineer: "one node emitting 152,183 lines in 6h22m"), 497 (appendix). The comparison is stronger, not weaker: 152,183 lines on 1 node against 49,154 on 22,529. Fixed in my files: `CLAUDE.md`, README (also 18,770 → 19,250 episodes), `docs/build-plan.md` §0, `docs/data-notes.md`, `sql/99_smoke.sql`. Any slide or video script that has 136,209 or "5h43m" needs the same change.
+- ✔ Done by Arnie (`bba98b3`). **The one-node burst number in docs/process/PLAN.md is wrong: 152,183, not 136,209** (verified twice, `tests/golden/headline_numbers.sql`). docs/process/PLAN.md is yours, so I have not touched it. Lines to change: 124 (table row: "2005-06-11 17:17 → 23:39 | 152,183 | 1"), 127 ("39%" → "44% of all alert lines … in under six and a half hours"), 308 (W1 engineer: "one node emitting 152,183 lines in 6h22m"), 497 (appendix). The comparison is stronger, not weaker: 152,183 lines on 1 node against 49,154 on 22,529. Fixed in my files: `CLAUDE.md`, README (also 18,770 → 19,250 episodes), `docs/process/build-plan.md` §0, `docs/data-notes.md`, `sql/99_smoke.sql`. Any slide or video script that has 136,209 or "5h43m" needs the same change.
 - ✔ Done by Arnie (`98d5957`, persona-aware registry). **Roles are in the database now (`sql/50_roles.sql`); `datasets.py` needs the per-role relations.** Roles `exhibit_engineer`, `exhibit_lead`, `exhibit_manager` (the names in `.env.example`), no password, so connect as `postgres` and `SET ROLE` (a role cannot log in on its own; see the Stage 3 note below).
   - engineer: unchanged, everything you query today, including `bgl_idx` / `os_idx` by name.
   - lead: no per-line relation and **no full-text search** (the database refuses `bgl_idx`, because a search on an index is checked against `bgl_ev`). Use `lead_bgl_daily` (day, team, component, level, alert_category, is_alert, signature_id, signature, lines, nodes, midplanes), `lead_os_hourly` (hour, team, service, logger, level, signature_id, signature, lines, instances, requests, http_errors), `bgl_incident`, `bgl_signature_incidents`, `os_instance_durations`, `owner_map`. `search_logs` for the lead should return "not permitted for this role". `nodes` / `instances` / `requests` are distinct per bucket: never sum them.
@@ -207,7 +207,7 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0
   - New column `signature_id` on `bgl_sig`, `os_sig`, `bgl_incident`, `bgl_signature_incidents`: the join key between the lead's and the manager's views.
   - **Changed in item 4:** `mgr_os_risk` is now one row per *problem* (dataset, problem, service, team, worst_level, incidents_5min, records, tracebacks, lines, critical_lines, error_lines, warning_lines, requests_affected, first/last_seen), no longer per signature_id. New `mgr_os_lifecycle` (file_group, instances, spawned, spawn p50/p95/max, image p50/max, boot p50/max).
 - **W2 views for your `episodes`, `durations` and `top_signatures` on OpenStack** (`sql/30_views.sql`): `os_problem_incidents` (one row per problem: episodes, records, tracebacks, lines by level, team), `os_incident` (one row per incident), `os_episode` (per line, engineer only), `os_instance_durations` (now with claim_s, image_s, boot_s, run_s, teardown_s, destroy_s, dealloc_s, lifetime_s, source_file, and the real owning team), `os_latency_by_file` (mean, p50, p95, p99 per file and per normal/abnormal group). `os_sig` adds `level_rank`, `record_key`, `problem`, `event`, `took_s`. The OpenStack episodes gap is fixed at 5 minutes in the view, as for BGL; if `episodes` must take 1/5/60 on OpenStack too, the tool needs the parameterised SQL pattern rather than the view.
-- ✔ Done by Arnie (PLAN.md §4, §9, §17 now read this way). **PLAN.md OpenStack wording (yours to change; numbers verified, `tests/golden/w2_numbers.sql`):** §17 "188 error lines = 8 tracebacks of one bug + 6 CRITICAL auth lines" is wrong (184 + 6 = 190, and only 2 lines are CRITICAL). Suggested: "188 ERROR + CRITICAL lines = 184 lines in 8 tracebacks of one imagecache bug + 4 token-validation lines (2 failed validations, 6 lines with their 2 WARNINGs)". §4 "188 error lines ≈ 8 incidents of 1 bug" has the same problem, and "184 ERROR lines, all from `nova.virt.libvirt.imagecache`" should say *logged by `oslo_service.periodic_task`*, with imagecache in the stack frames. §9 W2 manager "six lines of CRITICAL auth failures" → "2 CRITICAL token-validation failures (6 lines)". `docs/build-plan.md` §0 says "6 CRITICAL auth lines" too; I fix that one.
+- ✔ Done by Arnie (docs/process/PLAN.md §4, §9, §17 now read this way). **docs/process/PLAN.md OpenStack wording (yours to change; numbers verified, `tests/golden/w2_numbers.sql`):** §17 "188 error lines = 8 tracebacks of one bug + 6 CRITICAL auth lines" is wrong (184 + 6 = 190, and only 2 lines are CRITICAL). Suggested: "188 ERROR + CRITICAL lines = 184 lines in 8 tracebacks of one imagecache bug + 4 token-validation lines (2 failed validations, 6 lines with their 2 WARNINGs)". §4 "188 error lines ≈ 8 incidents of 1 bug" has the same problem, and "184 ERROR lines, all from `nova.virt.libvirt.imagecache`" should say *logged by `oslo_service.periodic_task`*, with imagecache in the stack frames. §9 W2 manager "six lines of CRITICAL auth failures" → "2 CRITICAL token-validation failures (6 lines)". `docs/process/build-plan.md` §0 says "6 CRITICAL auth lines" too; I fix that one.
 - **Ownership trap worth a demo line:** the imagecache traceback is logged by `oslo_service.periodic_task`, so logger-first precedence gives it to `platform-services`, while the imagecache warnings go to `image-service`. One bug, two teams. Your lead answer should say so; changing `data/ownership.csv` is our call together.
   - Your evidence ledger: every role needs `SELECT` / `INSERT` on `exhibit_evidence` once it exists. Add the grants to `sql/50_roles.sql` (one table per GRANT statement) or tell me the table name and I will.
   - `make bootstrap` now runs `roles` last; `sql/30_views.sql`'s `DROP … CASCADE` removes the role views, so never run views without roles after it.
@@ -228,7 +228,7 @@ Deadline: Sun 18 Oct, 23:59 · Current team stage: 7 (video) · Status: stages 0
 - **Your `SET ROLE` design is the only one that works** (measured, `docs/capabilities.md` §6): a LOGIN role without a password is refused even over the container's loopback (`password authentication failed for user "exhibit_lead"`); SereneDB trusts only `postgres`, on loopback. `db.py:86` already does it; nothing to change. Giving the roles passwords would be a joint decision.
 - **`mgr_bgl_risk` gained columns** (`top_node_pct`, `rank_blast_radius`, `rank_persistence`); none removed or renamed, so your manager relation's column list still works. Add them if `top_signatures` should rank by blast radius or persistence for the manager.
 - **From the Windows host, `postgres` needs a password too**: Docker Desktop forwards `127.0.0.1:7890` from the bridge, which the default HBA treats as remote (`password authentication failed for user "postgres"`). Your server will fail on my box until we pick one: `POSTGRES_PASSWORD` on first start, `ALTER ROLE postgres PASSWORD …` (with `SERENEDB_PASSWORD` from `.env`), or `SET hba` trusting the bridge. Security setting, not changed by me.
-- **PLAN.md §9 W1 lead (line 316) is still wrong (yours; verified, `tests/golden/stage3_numbers.sql`)**: "91% of alert volume belongs to `compute-platform`" → "91% of all BGL lines, but 82% of alert lines and 52% of incidents; workload-runtime (ciod) has 48% of incidents". "thousands of small incidents across eight nodes" → "thousands of small incidents, each touching at most 8 nodes (1,024 I/O nodes overall)". W1 manager: the ranked list exists now, and DTLB, first by lines, is 12th (`rts panic`, 3,394 nodes on 124 days, is first). §8 "132 / 117 / 57" is right. New for W1 lead: by weekly trend, Lustre's incidents are all in 3 weeks and none in the last 9; ciod's 3,638 are all in the last 9 (slope +14.8 a week).
+- **docs/process/PLAN.md §9 W1 lead (line 316) is still wrong (yours; verified, `tests/golden/stage3_numbers.sql`)**: "91% of alert volume belongs to `compute-platform`" → "91% of all BGL lines, but 82% of alert lines and 52% of incidents; workload-runtime (ciod) has 48% of incidents". "thousands of small incidents across eight nodes" → "thousands of small incidents, each touching at most 8 nodes (1,024 I/O nodes overall)". W1 manager: the ranked list exists now, and DTLB, first by lines, is 12th (`rts panic`, 3,394 nodes on 124 days, is first). §8 "132 / 117 / 57" is right. New for W1 lead: by weekly trend, Lustre's incidents are all in 3 weeks and none in the last 9; ciod's 3,638 are all in the last 9 (slope +14.8 a week).
 - **`statement_timeout` is not enforced by the server** (it warns and runs on). Rule 9's 30 s limit on tool paths has to be enforced in your code: e.g. a timer that calls `conn.cancel()`, or run the query in a thread and cancel on timeout. Do not rely on `SET statement_timeout`.
 
 ## Open issues
@@ -265,17 +265,17 @@ W2 views and `CLAUDE.md` are exactly as you left them.
   anything to `sql/50_roles.sql`; I granted the three roles SELECT/INSERT there, one table per
   statement as you said. Every answer — **including every refusal** — is recorded, and
   `verify_evidence` re-runs a stored statement and compares hashes.
-- **PLAN.md is updated** for everything you flagged: the burst, the OpenStack wording (§4/§9), the
+- **docs/process/PLAN.md is updated** for everything you flagged: the burst, the OpenStack wording (§4/§9), the
   team name. One thing to know so nobody "fixes" it later: **both burst numbers are right and they
   are different cuts.** 152,183 = every alert line on that node that day (152,182 `KERNDTLB` + 1
-  `KERNMC` at 17:17:44.605); 152,182 = the single incident `episodes` reports. PLAN.md §4 now says
+  `KERNMC` at 17:17:44.605); 152,182 = the single incident `episodes` reports. docs/process/PLAN.md §4 now says
   so, and the acceptance suite guards both.
 - **One measured deviation from the plan, recorded rather than fudged:** `what_changed` was
   specified with `ts_dict_agg` / `ts_dict_count`. `ts_dict_agg(content)` returns per-term *identifier
   arrays* — one call over ~21k lines returned about **4.8 MB** — and `ts_dict_count` takes exactly one
   argument and returns `INTEGER[]`, so neither gives a bounded term→count map and neither can be
   paired with terms. Change is therefore measured at **signature** level, rate-normalised per bucket
-  (a 6-hour window against 24 hours must not read as "down 75%"). PLAN.md §7 and
+  (a 6-hour window against 24 hours must not read as "down 75%"). docs/process/PLAN.md §7 and
   `docs/capabilities.md` §8 carry the measurement.
 - **Your `episodes`-gap note was exactly right and it shaped the design.** The engineer holds a grant
   on `bgl_sig` / `os_sig`, so the gap is a real bound parameter (`INTERVAL '1 minute' * %s` binds);
@@ -299,13 +299,13 @@ message was loose:
 
 - **91% / 81.61% / 52% / 48% — confirmed.** `compute-platform`: 4,325,112 of 4,747,963 all lines
   (91.1%), 284,391 of 348,460 alert lines (81.6%), 9,952 of 19,250 incidents (51.7%); ciod 9,258
-  (48.1%). All four now sit in PLAN.md §9 W1 with the cut labelled on each.
+  (48.1%). All four now sit in docs/process/PLAN.md §9 W1 with the cut labelled on each.
 - **"eight nodes" — you are right and I was loose.** `max(nodes)` in any one Lustre incident is
-  **8**; the signature reaches **1,024 nodes** overall. PLAN.md now says "at most 8 nodes in any one
+  **8**; the signature reaches **1,024 nodes** overall. docs/process/PLAN.md now says "at most 8 nodes in any one
   of them, 1,024 I/O nodes overall" rather than my earlier "eight per midplane".
 - **DTLB 152,734 / 99.64% one node — confirmed** (152,182 of 152,734).
 - **rts panic: 3,394 nodes, 124 days — confirmed** (`KERNRTSP`). But the phrasing in your message
-  conflated two measures, so PLAN.md now separates them: DTLB is **12th by blast radius** and **23rd
+  conflated two measures, so docs/process/PLAN.md now separates them: DTLB is **12th by blast radius** and **23rd
   by blast radius + persistence**, and rts panic is **1st on the combined measure**. By peak blast
   radius *alone* the top is a third signature (the fleet event, 22,529 nodes) — worth knowing before
   a judge asks which ranking you mean.
@@ -315,7 +315,7 @@ message was loose:
   binds, it works, and it is now an acceptance check rather than a claim.
 - **ciod 3,638 all in the last 9 weeks, Lustre none — confirmed** (`Lustre mount FAILED : bglio{n} :
   point /p/gb{n}` = 3,667 incidents, last one 2005-09-16; ciod's 3,638 run 2005-11-17 → 2006-01-03).
-  That contrast is now in PLAN.md §9 as the lead's answer.
+  That contrast is now in docs/process/PLAN.md §9 as the lead's answer.
 
 What I changed because of your handoff:
 
@@ -376,11 +376,11 @@ Also added while I was in there, because the demo quotes it: `episodes` takes **
 > **Update, 14:0x UTC:** PR #3 is **merged** into `main` at Arnie's instruction (`main` = `116c4e5`;
 > rebase, no rewrites). Verified from a fresh clone of merged `main`: **101/101 checks, stock client
 > PASS, `make eval` 15/15**. The review points below stand for reading — and the Q&A tonight is
-> where we close the loop on them. See also the new **Status column in `PLAN.md` §11**.
+> where we close the loop on them. See also the new **Status column in `docs/process/PLAN.md` §11**.
 
 **First, what happened to your half:** PR #2 was merged into `main` at 12:21 UTC today (rebase; your
 Stage 3 is the base of it). `main` = `0fe49f6`, and a clean clone of `main` passes 94/94 + the stock
-client. Nothing of yours was rewritten; the `PROGRESS.md` conflict was the only overlap.
+client. Nothing of yours was rewritten; the `docs/process/PROGRESS.md` conflict was the only overlap.
 
 **Then this branch (`stage5-eval-and-lints`, PR #3) — four things, all on the seam between our two
 halves, which is where the bugs were:**
@@ -479,10 +479,10 @@ list. The W2 split holds (184 ERROR → platform-services, 3,059 warnings → im
 - **`.mcp.json` registers only `serenedb-docs`, not exhibit itself.** A judge whose MCP client reads the
   repo's `.mcp.json` gets no exhibit tools until they add the server by hand. For the MCP-server award:
   `"exhibit": {"command": "uv", "args": ["run", "exhibit-mcp"]}` (packaging is yours).
-- `PLAN.md:348` — "12th by blast radius and 23rd by blast radius + persistence": 23 is DTLB's rank
+- `docs/process/PLAN.md:348` — "12th by blast radius and 23rd by blast radius + persistence": 23 is DTLB's rank
   **sum** (blast radius 12 + persistence 11); its **position** on the combined measure is also 12th
   (`make demo` W1 M2, `risk_position` 12). Suggest "12th by blast radius and 12th on the combined
-  measure (rank sum 23)". `PLAN.md:274` still says 80 checks (101 now).
+  measure (rank sum 23)". `docs/process/PLAN.md:274` still says 80 checks (101 now).
 - `evals/golden.sql:6` — attributes "76 of 76 checks" to `scripts/validate_ground_truth.py`; those
   76 are `tests/golden/stage3_numbers.sql`. The validation script runs 13 expectations.
 - `docs/disclosure.md:67` — "Both were raised with the challenge owners at the Q&A" was written
@@ -493,7 +493,7 @@ list. The W2 split holds (184 ERROR → platform-services, 3,059 warnings → im
   table is missing (a database bootstrapped before `sql/55_evidence.sql`); a refusal-style message
   would be friendlier. Only seen on my stale database.
 
-**Not done, deliberately:** nothing pushed; no edits to your files; PLAN.md untouched (§9, §11,
+**Not done, deliberately:** nothing pushed; no edits to your files; docs/process/PLAN.md untouched (§9, §11,
 §14 item 3 and the bench result are yours to fold in, with the numbers above).
 
 ## Handoff back, round 5 — your seven findings, fixed (Arnie, Sat 17 Oct, late)
@@ -506,7 +506,7 @@ All seven, merged as PR #6, with `make check` 101/101 (stock client PASS) and `m
 - **stock client** asserts the 12th tool now; it prints "all 12 tools are exposed".
 - **`.mcp.json`** registers `exhibit` itself — `uv run exhibit-mcp` (your suggested shape,
   verbatim); verified to start on stdio. The other connection paths in §14 item 1 stay open.
-- **PLAN.md** — rank wording now "12th by blast radius and also 12th on the combined measure
+- **docs/process/PLAN.md** — rank wording now "12th by blast radius and also 12th on the combined measure
   (rank sum 23)"; 80 → 101 checks; Stage 5's "ground truth was already in" rewritten to the truth
   (you committed the script — my round-3 wording was wrong; caught, fixed); Stage 6 status; §14
   items 1–3 marked, item 3 carries your bench numbers.

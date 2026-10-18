@@ -10,6 +10,29 @@ We take BGL and OpenStack logs, index them in SereneDB, and expose them to an LL
 through an MCP server whose every answer is computed by SQL and cited back to the exact
 query that produced it.
 
+## Start here
+
+| If you want | Read |
+|---|---|
+| **The worked investigation** — the questions, the tool calls, the executed SQL, the results, and the answers for the engineer, team lead and manager | [`docs/worked-investigation.md`](docs/worked-investigation.md) |
+| **The slides** | [`docs/slides.pdf`](docs/slides.pdf) |
+| **How we know it works when a stranger talks to it** — 29 judge-style questions against the live endpoint, and the eight defects they found | [`docs/battery.md`](docs/battery.md) |
+| What SereneDB 26.09.1.3 actually does — one row per thing we tried, executed | [`docs/capabilities.md`](docs/capabilities.md) |
+| What the corpora look like once you read them properly | [`docs/data-notes.md`](docs/data-notes.md) |
+| Ground truth, scored from outside the agent | [`docs/validation.md`](docs/validation.md) |
+| What we used, and what was built during the build window | [`docs/disclosure.md`](docs/disclosure.md) |
+
+Reproduce the whole thing, then read the investigation:
+
+```bash
+make bootstrap smoke       # load + index both corpora (~20 s) and print the headline numbers
+make demo                  # both worked investigations, engineer -> lead -> manager
+make check eval validate   # 101 acceptance checks, 15/15 eval, 13/13 ground truth
+```
+
+The working documents we built from — the plan, the build reference, the handoff log — are in
+[`docs/process/`](docs/process/), which also says which files to read instead.
+
 ## The one idea
 
 > **SQL computes. The LLM explains.**
@@ -25,7 +48,7 @@ rejects any answer whose numbers are not present in the tool output.
 (midplane). Ranking by line count points at the wrong problem: `data TLB error interrupt` has
 152,734 lines (44% of all alerts) but is only 117 episodes, because 152,182 of those lines
 happen on one node in one 6h22m burst on 2005-06-11. Meanwhile the alert category `APPSEV`, at
-49,651 lines, is 7,036 separate episodes per midplane.
+49,651 lines across its five signatures, is 7,165 episodes per midplane (`bgl_signature_stats`).
 
 Both rankings are in the demo, side by side. That is what "making sense of logs" means.
 
@@ -73,11 +96,14 @@ On Windows with Git Bash, also `export MSYS_NO_PATHCONV=1`, or Git Bash rewrites
 into `C:/Program Files/Git/data/loghub` before Docker sees it. The Makefile sets `PYTHONUTF8=1`,
 because a Windows console's default code page cannot print the checks' output.
 
-## Repository map
+## What is in the repository
+
+The things to read first are in **Start here** above. This is the full map, so nothing is hidden:
+the code and SQL first, the working documents last.
 
 | Path | What it is | Status |
 |---|---|---|
-| `PLAN.md` | The full build plan: stages, gates, allocation, Q&A prep — **§16 is the rule list for coding agents** | done |
+| `docs/process/PLAN.md` | The full build plan: stages, gates, allocation, Q&A prep — **§16 is the rule list for coding agents** | done |
 | `docs/capabilities.md` | What SereneDB 26.09.1.3 actually does — every row executed | done |
 | `docs/data-notes.md` | Corpus recon: BGL's four record shapes, the five findings | done |
 | `sql/10_derive.sql` | Raw Parquet → `bgl_ev`, `os_ev`, `owner_map` | done, runs in 14 s |
@@ -101,10 +127,11 @@ because a Windows console's default code page cannot print the checks' output.
 | `scripts/validate_ground_truth.py` | **Ground truth, outside the agent**: `anomaly_labels.txt` vs the `durations` ranking; BGL label vs text-only signatures | done, `make validate` → 13/13 |
 | `sql/70_bench.sql` | The huge-datasets bench: the 1B-row remote OTel file, and an index on a view over Parquet | done, `make bench`; results in `bench/README.md` |
 | `docs/validation.md` · `docs/disclosure.md` | What the validation establishes · models, tools, datasets, what was built in the window | done |
+| `docs/process/` | Our working documents: the operating plan, the build reference, the handoff log, the kickoff brief | kept for transparency |
 | `LICENSE` | MIT | done |
 
 Nothing in this repo is aspirational: a row marked *done* has been executed on the live corpus,
-and the stage numbers refer to `PLAN.md` §11.
+and the stage numbers refer to `docs/process/PLAN.md` §11.
 
 ## Run the agent
 
@@ -315,7 +342,7 @@ BGL's label column is incomplete (84,253 fault lines carry the `-` "normal" labe
 anomalies are only visible through lifecycle durations, not through log levels. The ownership
 table is our construction, not ground truth. BGL's label is visible to the agent, so its validation
 checks agreement rather than blindness. On SereneDB 26.09.1.3 the remote index needs the external
-file cache off, and on this machine it crashes the server above about ten seconds of the OTel file
+file cache off, and on the 16-vCPU machine we benchmarked on it crashes the server above about ten seconds of the OTel file
 (`bench/README.md`). No answer states a cost, downtime or customer figure: the logs cannot support
 one, and the manager lint rejects them.
 

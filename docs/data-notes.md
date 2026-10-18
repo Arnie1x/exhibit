@@ -181,4 +181,4 @@ median of 6.65 s), run and teardown are ordinary. API latency per file (`os_late
 mean 0.2341 s, p95 0.3826 s. The abnormal file holds 198 instances, so its name does not reveal
 which four are labelled.
 
-They are used **only** by a validation script that the agent cannot reach. See PLAN.md §9.
+They are used **only** by a validation script that the agent cannot reach. See docs/process/PLAN.md §9.

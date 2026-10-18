@@ -1,6 +1,6 @@
 -- sql/99_smoke.sql
 -- The headline numbers. If these print, the build is alive and the demo's claims are real.
--- Every figure here is quoted in PLAN.md and README.md; re-run this after any reload.
+-- Every figure here is quoted in docs/process/PLAN.md and README.md; re-run this after any reload.
 
 \pset border 2
 \echo '=== 1. corpus loaded ==='

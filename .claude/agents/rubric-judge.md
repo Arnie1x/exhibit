@@ -33,7 +33,7 @@ Public repo with a README covering workflow, setup, how to run and known limitat
 
 ## 4. Special awards (0–10 each, judged separately)
 
-- Best MCP Server: clear tool descriptions, appropriate tool selection by the agent, useful limits on returned results, and Claude can connect and answer questions using the setup instructions alone. Test it: run one role question headless from an empty temp directory with only the exhibit server (`--strict-mcp-config`, `--allowedTools "mcp__exhibit"`, built-in tools disallowed; `docs/build-plan.md` Stage 5) and check that our tools, not Bash, produced the answer.
+- Best MCP Server: clear tool descriptions, appropriate tool selection by the agent, useful limits on returned results, and Claude can connect and answer questions using the setup instructions alone. Test it: run one role question headless from an empty temp directory with only the exhibit server (`--strict-mcp-config`, `--allowedTools "mcp__exhibit"`, built-in tools disallowed; `docs/process/build-plan.md` Stage 5) and check that our tools, not Bash, produced the answer.
 - Working with Huge Datasets: how much data was actually queried, whether results stay useful, observed query times and the machine used; on-demand indexing is an extra, and a measured negative result counts.
 
 ## 5. Informal bonuses

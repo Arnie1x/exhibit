@@ -382,7 +382,7 @@ It is **10:30 Saturday**. The deadline is **23:59 Sunday**. Organiser advice: pi
 by Saturday morning (done), and **sleep Saturday night**.
 
 Status is a column, not a claim in chat: this table is the one `/stage N` numbers, and
-`docs/build-plan.md` §0 maps those numbers to its own hour-based stages (its "Stage 4 — Insight
+`docs/process/build-plan.md` §0 maps those numbers to its own hour-based stages (its "Stage 4 — Insight
 tools" is team-stage 3; its "Stage 6 — Bonus tracks" is not team-stage 6).
 
 | When | What | Gate — do not pass without this | Status |
@@ -433,7 +433,7 @@ this hour, and the demo stream is a **shared two-hour block each day**, not a so
 
 **Do this in the next two hours:**
 
-- **Adnan (done, 17 Oct — `PROGRESS.md` items 1–2):** re-probed on the current schema and **broke one row** — a partial index *does* restrict on pattern B (it is ignored only on a search table). Independently recomputed every headline number and **corrected one: the one-node burst is 152,183 lines, not 136,209** — my figure was that burst cut at a 23:00 window boundary. Ported `sql/50_roles.sql` to `bgl_ev`/`os_ev`; the scope proof runs clean, including the five denials.
+- **Adnan (done, 17 Oct — `docs/process/PROGRESS.md` items 1–2):** re-probed on the current schema and **broke one row** — a partial index *does* restrict on pattern B (it is ignored only on a search table). Independently recomputed every headline number and **corrected one: the one-node burst is 152,183 lines, not 136,209** — my figure was that burst cut at a 23:00 window boundary. Ported `sql/50_roles.sql` to `bgl_ev`/`os_ev`; the scope proof runs clean, including the five denials.
 - **Arnie:** get one real end-to-end call working — stock client → MCP server → `bgl_idx` → envelope → cited answer. Not five tools; **one**, and ugly is fine. Then the ledger.
 - **Both:** in the Q&A, ask the questions in §13; write the answers into this file the same night.
 

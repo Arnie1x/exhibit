@@ -58,21 +58,21 @@ Arnie's team plan ("Logging off Early", 17 Oct 10:30) is now the operating plan:
 
 ## 1. How to run this plan with a coding agent
 
-The coding agent works from four repo files: the team's `PLAN.md` (schedule, split, measured numbers; see Section 0), `docs/build-plan.md` (this doc, exported as Markdown: contracts, SQL, verification), `CLAUDE.md` (rules, stack, SereneDB facts) and the kit's `/stage N` command. Nothing here is pre-written code, so all code is created inside the hackathon window.
+The coding agent works from four repo files: the team's `docs/process/PLAN.md` (schedule, split, measured numbers; see Section 0), `docs/process/build-plan.md` (this doc, exported as Markdown: contracts, SQL, verification), `CLAUDE.md` (rules, stack, SereneDB facts) and the kit's `/stage N` command. Nothing here is pre-written code, so all code is created inside the hackathon window.
 
 **Before H0 (tonight, about 20 minutes)**
 
 1. Ask the organizers for the exact submission deadline and format. Their Q&A of 17 Oct settled the rest: there is no shared instance and no supplied loader, schema or ownership table. Each team runs SereneDB locally in Docker (no credentials by default) and ships its own schema, loading scripts and ownership table in the repo.
-2. The team repo exists (private until Stage 8). Unzip the kit at its root without overwriting anything: this doc lands as `docs/build-plan.md`, and if the repo already has `CLAUDE.md`, `.mcp.json` or `.gitignore`, merge ours into them. Re-export this doc after any edit here.
+2. The team repo exists (private until Stage 8). Unzip the kit at its root without overwriting anything: this doc lands as `docs/process/build-plan.md`, and if the repo already has `CLAUDE.md`, `.mcp.json` or `.gitignore`, merge ours into them. Re-export this doc after any edit here.
 3. Install: Python 3.11+, `uv`, `psql`, Docker, Node 18+ (for MCP Inspector and the optional `.mcpb` bundle), Claude Desktop (for the demo).
 4. Connect the SereneDB docs MCP server to the coding agent with the organizers' guide. The kit's `.mcp.json` already declares it (`https://api.serenedb.com/mcp`): approve it when the agent first starts in the repo, then check that it is listed.
 5. Run SereneDB locally with the team's pinned image: `docker run -d --name serenedb -p 127.0.0.1:7890:7890 -v serenedb-data:/var/lib/serenedb -v "$PWD/data":/data serenedb/serenedb:26.09.1.3`, then `psql -h 127.0.0.1 -p 7890 -U postgres`. 26.09.1.3 is the newest multi-arch tag (26.10.x is amd64-only). Publish on loopback only: auth is trust and Docker bypasses ufw; a teammate connects over Tailscale, never the public IP.
 
 **Operating loop for every stage**
 
-1. `/clear`, then `/stage N`. Claude reads `CLAUDE.md`, `PROGRESS.md` and the Stage N section of `PLAN.md`.
+1. `/clear`, then `/stage N`. Claude reads `CLAUDE.md`, `docs/process/PROGRESS.md` and the Stage N section of `docs/process/PLAN.md`.
 2. Claude proposes the stage's task list in plan mode. You approve or trim it.
-3. Claude builds, runs the stage's acceptance checks, commits as `stage N: <summary>` and appends to `PROGRESS.md` (done, decisions, measured numbers, open issues).
+3. Claude builds, runs the stage's acceptance checks, commits as `stage N: <summary>` and appends to `docs/process/PROGRESS.md` (done, decisions, measured numbers, open issues).
 4. You read the acceptance output. If a check fails: `/stage N fix: <what failed>`.
 5. At each MVP gate run `/judge` to score the repo against the rubric.
 
@@ -96,12 +96,12 @@ Solo: run two agent sessions (data + MCP) from H2 to H16, then one.
 
 | File | Purpose |
 | --- | --- |
-| `docs/build-plan.md` | This doc, as the design reference; the team's `PLAN.md` runs the schedule and is never overwritten |
+| `docs/process/build-plan.md` | This doc, as the design reference; the team's `docs/process/PLAN.md` runs the schedule and is never overwritten |
 | `CLAUDE.md` | Non-negotiable rules, stack, SereneDB facts and gotchas, definition of done |
-| `KICKOFF.md` | The H0 checklist, the first prompt, the two-session setup and the overnight prompts |
-| `PROGRESS.md` | Running log: H0, stage log, requirements tracker, decisions, measured numbers, background jobs |
+| `docs/process/KICKOFF.md` | The H0 checklist, the first prompt, the two-session setup and the overnight prompts |
+| `docs/process/PROGRESS.md` | Running log: H0, stage log, requirements tracker, decisions, measured numbers, background jobs |
 | `.claude/commands/stage.md` | `/stage N` runner with `auto` and `fix:` modes and a clock check against H0 |
-| `.claude/commands/checkpoint.md` | Commit, update `PROGRESS.md`, print the requirements tracker |
+| `.claude/commands/checkpoint.md` | Commit, update `docs/process/PROGRESS.md`, print the requirements tracker |
 | `.claude/commands/verify.md` | Re-derives every number in an answer or investigation with independent SQL |
 | `.claude/commands/judge.md` | Scores the repo against the four judging criteria, the minimal requirements and both awards |
 | `.claude/commands/unstuck.md` | A 20-minute way out of a blocker: reproduce, classify, tested alternative, fallback |
@@ -407,9 +407,9 @@ Stages 0–3 deliver the minimal requirements by H16; long jobs run through the 
    - External: `SELECT count(*) FROM read_parquet('https://public-pme.s3.eu-west-3.amazonaws.com/text_bench/part_000.parquet')` (metadata only, no full scan).
    - Security: `CREATE ROLE`, `GRANT`, column `GRANT`, `GRANT USAGE ON SCHEMA`, role membership and `SET ROLE`.
 5. Schema recon: tables, columns, row counts, 20 sample rows each, the distinct BGL components and OpenStack services and loggers. From that list write our ownership table, seed/ownership.csv (each one mapped to a team of one fictional platform org), and load it as ownership. Write `docs/DATA_NOTES.md` with each fact next to the SQL that produced it.
-6. First `PROGRESS.md` entry, commit, push.
+6. First `docs/process/PROGRESS.md` entry, commit, push.
 
-**You do:** start SereneDB in Docker (Section 1 step 5), confirm the deadline with the organizers; paste the `KICKOFF.md` prompt; check `/mcp` shows `serenedb-docs`.
+**You do:** start SereneDB in Docker (Section 1 step 5), confirm the deadline with the organizers; paste the `docs/process/KICKOFF.md` prompt; check `/mcp` shows `serenedb-docs`.
 
 **Acceptance**
 
@@ -765,7 +765,7 @@ Prompt names differ by client: CLI clients list them as `/mcp__exhibit__engineer
 - [ ] Dataset citations in README and slides.
 - [ ] Tag `v1.0`; submission form sent before the deadline.
 - [ ] Reproducible from scratch: schema, loader and ownership table in the repo; `make db load bootstrap` documented in the README with the pinned SereneDB image.
-- [ ] Public face: build files (`PLAN.md`, `KICKOFF.md`, `PROGRESS.md`) moved to `docs/process/`; the root `CLAUDE.md` replaced by a short judge version (what the tools do, the three prompts, cite evidence IDs); `.claude/settings.json` trimmed to read-only rules.
+- [ ] Public face: build files (`docs/process/PLAN.md`, `docs/process/KICKOFF.md`, `docs/process/PROGRESS.md`) moved to `docs/process/`; the root `CLAUDE.md` replaced by a short judge version (what the tools do, the three prompts, cite evidence IDs); `.claude/settings.json` trimmed to read-only rules.
 - [ ] MIT licence and a disclosure section: models and tools used, and what was built during the window.
 - [ ] Video of at most 5 minutes, plus a 3-minute cut, with real queries and real numbers on screen.
 - [ ] SereneDB starred on GitHub and the docs MCP connected (listed prerequisites).

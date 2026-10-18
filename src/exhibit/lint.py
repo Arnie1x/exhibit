@@ -1,6 +1,6 @@
 """The answer lints — what a persona's answer may and may not claim.
 
-Both rules are promised in the plan (`docs/build-plan.md` §6) and enforced here, in code, because
+Both rules are promised in the plan (`docs/process/build-plan.md` §6) and enforced here, in code, because
 both are the kind of thing that is easy to promise and easy to forget the moment a demo is running:
 
 * the **manager lint**: a manager answer may not mention money, downtime, customers, revenue or an

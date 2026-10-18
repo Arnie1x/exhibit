@@ -17,7 +17,7 @@ What this scores — and what it deliberately does not:
 It does **not** score a model's prose. Nothing here can tell whether an LLM wrote a good paragraph
 this morning; what it can tell is whether every figure such a paragraph would cite is reproducible,
 checkable and correctly scoped. That is the part that has to be true, and it is the part the plan
-promised (`docs/build-plan.md` §6, Stage 5).
+promised (`docs/process/build-plan.md` §6, Stage 5).
 
 Run: `make eval` (or `uv run python evals/run_eval.py`).
 """
