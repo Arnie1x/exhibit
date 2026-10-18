@@ -176,7 +176,7 @@ tools: describe_data, search_logs, count_events, episodes, top_signatures, trend
        ownership, nearby_events, what_changed, verify_evidence, lint_answer
 
 the same question, asked as the three personas
-  engineer  [E-88FE03] count_events: 4,747,963 matching rows (showing 2) | engineer@exhibit_engineer
+  engineer  [E-4BDFE1] count_events: 4,747,963 matching rows (showing 2) | engineer@exhibit_engineer
             top: [('compute-platform', 4325112), ('workload-runtime', 228536)]
   lead      [E-3CDBEC] count_events: 4,747,963 sum of lines (showing 2) | lead@exhibit_lead
   manager   [E-EEAF08] count_events: 348,460 sum of alert_lines (showing 2) | manager@exhibit_manager

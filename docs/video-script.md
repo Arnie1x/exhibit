@@ -57,6 +57,32 @@ Where this script and `docs/process/build-plan.md` disagree, the repo wins: the 
 U13b. Same takes, less screen time around each, and no unit in it depends on a cut one. Slide 4
 ("One corpus, three rankings") is the summary card for U5–U8 and is not narrated on its own.
 
+### Read this first: "the MCP client" means a command, not typing
+
+Several units say *SHOW — the MCP client*. That always means **the client on screen**, and the
+deterministic way to put it there is to run the stock-client script:
+
+```bash
+uv run python scripts/stage2_mcp_client.py
+```
+
+You are never typing questions into a chat window on camera unless a unit explicitly says **TYPE**.
+That script is itself a real MCP client (the `mcp` SDK's stdio client) talking to our server, and it
+prints every figure these units need. **One run of it covers five units, and it cannot go off-script:**
+
+| Unit | What the script prints for it |
+| --- | --- |
+| U3 | `tools: describe_data, … lint_answer` and `all 12 tools are exposed` |
+| U4 | `the same question, asked as the three personas` — 4,747,963 / 4,747,963 / 348,460 — then `NOT PERMITTED for lead@exhibit_lead` |
+| U5 | `117 incidents` for DTLB, and `E-55EF08` with the deepest incident on R30-M0 |
+| U11a | `E-55EF08: match=True (19,250 rows recorded, 19,250 now)` / `MATCH` |
+| U11b | `verdict: rejected (2 rejections)` on the bad manager answer, then `after the fix: warnings` |
+
+So the safest way to shoot those five is one screen recording of that command, run top to bottom,
+with the live chat client used only in U3 (to show the same tool list over the live endpoint) and U7
+(the ranking). If you would rather show a human asking a question, the **TYPE** lines are there for
+that — just let the script run finish before you do.
+
 ---
 
 ## U1 · Open · 16 s
@@ -242,9 +268,36 @@ U13b. Same takes, less screen time around each, and no unit in it depends on a c
 ## U11b · The lint and the eval · 11 s
 **5:00** 4:04–4:15 · **3:00** cut
 
-- **SHOW** — the MCP client: `lint_answer` on the stock-client script's rejected manager answer (the
-  text lives in `scripts/stage2_mcp_client.py`), verdict `rejected (2 rejections)`. Then terminal
-  `make eval`, last three lines. Slide 13 is the summary card.
+- **SHOW** — `uv run python scripts/stage2_mcp_client.py`, and hold on its **last two blocks**
+  (they are at the very bottom of the output). Then terminal `make eval` and hold on the last three
+  lines. Slide 13 is the summary card.
+- **You are not typing an answer.** The deliberately-bad manager answer is hard-coded near the bottom
+  of `scripts/stage2_mcp_client.py`:
+
+  ```
+  "Scope: both datasets / Answer: this will cost downtime and revenue. / Observed: - 3,394 nodes [E-0012AB]"
+  ```
+
+  The client sends that to the `lint_answer` tool as the manager persona. The lint rejects it on two
+  counts (it names `downtime` and `revenue`, and this corpus has no column that measures either), and
+  the script then sends a corrected version, which comes back clean. **These are the exact lines to
+  catch on screen:**
+
+  ```
+  linting a manager answer through the same client
+    verdict: rejected  (2 rejections)
+      [reject] manager-vocabulary: the manager answer says 'downtime', and this corpus has no column ...
+      [reject] manager-vocabulary: the manager answer says 'revenue', and this corpus has no column ...
+    after the fix: warnings
+  ```
+
+  then, from `make eval`:
+
+  ```
+  score: 15/15 questions
+  figures: 19/19 reproduced (0 wrong) | refusals exercised: 6
+  eval: PASS
+  ```
 - **SAY** — A manager answer that claims what the logs cannot measure is rejected by the lint. And the
   eval scores 15 of 15 questions against golden SQL.
 - **DEMONSTRATES** — the two rules from the brief turned into code: no invented impact, and every
