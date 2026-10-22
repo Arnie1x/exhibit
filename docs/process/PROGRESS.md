@@ -636,3 +636,13 @@ under the funnel — 10/10 clean funnel sessions after. And two crash paths from
 reason; the acceptance check asserts the error). Final battery through a real MCP client: pass 1 = 13
 engine crashes across 29 questions, pass 2 = **0**; spot-checked numbers all resolve to the ledger.
 `make check` 101/101, `make eval` 15/15, `make validate` 13/13.
+
+## After judging — the judged version is tag `v1.0` (Adnan, Thu 22 Oct)
+
+Exhibit won Track 04. The repository as judged is now the annotated tag `v1.0` (the name the build
+plan reserved for the submission) on `71e95ed`, `main` at the 18 Oct 23:59 CEST deadline. The repo's
+public push events show `71e95ed` pushed to `main` at 22:40 CEST and no push after 23:16. That last
+push was `a6fcf23` on `submission-check-adnan`, a newer `docs/slides.pdf` export that never reached
+`main` and is not in `v1.0`. The README opens with the result and the tag. Not enforced: anyone with
+write access can still move or delete a tag; a tag ruleset or release immutability is a repository
+setting and needs a repo admin.

@@ -2,6 +2,12 @@
 
 **National AI Hackathon 2026 · SchubKI · Track 04 — "Making Sense of Logs"**
 
+> **Winner of Track 04, "Making Sense of Logs" (the SereneDB challenge), at the SchubKI National AI Hackathon 2026.**
+>
+> The version the judges saw is frozen at tag [`v1.0`](https://github.com/Arnie1x/exhibit/tree/v1.0):
+> commit [`71e95ed`](https://github.com/Arnie1x/exhibit/commit/71e95ed), `main` as it stood at the
+> submission deadline, 18 October 2026, 23:59 CEST. Everything after that tag was added after judging.
+
 Two students, 48 hours, one question: *can a database plus an LLM answer the same question
 three different ways — for the engineer who fixes it, the lead who has to staff it, and the
 manager who has to justify the decision?*
@@ -340,7 +346,8 @@ make bench             # the 1B-row remote file: a slice indexed in place, bytes
 
 Judges can reproduce every claim from a clean checkout: the derive, the index, the
 investigations and the agent are all in this repo, and `make clean-check` runs the whole
-sequence in a fresh clone.
+sequence in a fresh clone. To reproduce exactly the version that was judged, clone the tag:
+`git clone --branch v1.0 https://github.com/Arnie1x/exhibit.git`.
 
 **[`docs/worked-investigation.md`](docs/worked-investigation.md) is the written worked investigation**
 the submission asks for: the two questions (W1 over BGL, W2 over OpenStack), every tool call with the
